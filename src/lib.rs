@@ -1,3 +1,5 @@
+use log::info;
+use std::process::Command;
 use std::{fs, path::PathBuf};
 
 pub fn get_curday() -> u32 {
@@ -49,14 +51,47 @@ pub fn get_days_dir() -> String {
     dir.to_str().unwrap().to_string()
 }
 
-pub fn get_src(kata_name: &str, katas_dir: Option<String>) -> PathBuf {
+pub fn get_src_path(kata_name: &str, katas_dir: Option<String>) -> String {
     let katas_dir = katas_dir.unwrap_or(get_katas_dir());
-    let kata_path = format!("{}/{}", katas_dir, kata_name);
-    return PathBuf::from(kata_path);
+    return format!("{}/{}", katas_dir, kata_name);
+}
+
+pub fn get_src(kata_name: &str, katas_dir: Option<String>) -> PathBuf {
+    let src_path = get_src_path(kata_name, katas_dir);
+    return PathBuf::from(src_path);
+}
+
+pub fn get_short_path(path: String) -> String {
+    return path
+        .split("/")
+        .collect::<Vec<&str>>()
+        .iter()
+        .rev()
+        .take(3)
+        .rev()
+        .map(|e| e.to_string())
+        .collect::<Vec<String>>()
+        .join("/");
+}
+
+pub fn get_dst_path(days_dir: Option<String>) -> String {
+    let days_dir = days_dir.unwrap_or(get_days_dir());
+    return format!("{}/day{}", days_dir, get_curday());
 }
 
 pub fn get_dst(days_dir: Option<String>) -> PathBuf {
-    let days_dir = days_dir.unwrap_or(get_days_dir());
-    let day_path = format!("{}/day{}", days_dir, get_curday());
-    return PathBuf::from(day_path);
+    let dst_path = get_dst_path(days_dir);
+    return PathBuf::from(dst_path);
+}
+
+pub fn run_make_command(kata_name: String, path: String) {
+    Command::new("make")
+        .arg("run")
+        .current_dir(path.clone())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()
+        .expect("failed to run the kata");
+
+    info!("Running {}, in {}", kata_name, get_short_path(path.clone()),);
 }

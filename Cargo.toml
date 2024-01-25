@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.4.6", features = ["derive"] }
+env_logger = "0.11.0"
 fs_extra = "1.3.0"
+log = "0.4.20"
 
 [[bin]]
 name = "katac"

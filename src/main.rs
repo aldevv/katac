@@ -1,32 +1,30 @@
+use crate::args::{copy_kata, Args};
 use clap::Parser;
-use katac::{create_day, get_curday, get_dst, get_src};
+use katac::{create_day, get_dst_path, run_make_command};
 
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-pub struct Args {
-    #[arg(short, long)]
-    katas_dir: Option<String>,
-
-    #[arg(short, long)]
-    days_dir: Option<String>,
-
-    #[arg(required = true, num_args = 1..)]
-    kata_names: Vec<String>,
-}
-
-pub fn copy_kata(args: Args) {
-    let copy_options = fs_extra::dir::CopyOptions::new();
-    for kata_name in &args.kata_names {
-        print!("Copying {} to day{}...", kata_name, get_curday());
-        let src = get_src(kata_name, args.katas_dir.clone());
-        let dst = get_dst(args.days_dir.clone());
-        fs_extra::copy_items(&[src], dst, &copy_options).unwrap();
-    }
-}
+pub mod args;
 
 fn main() {
+    env_logger::init();
     let args = Args::parse();
 
-    create_day();
-    copy_kata(args);
+    if args.run.is_none() {
+        if args.kata_names.is_empty() {
+            // TODO: bug, when installing, it creates the days folder even tho no kata name is provided
+            println!("{}", args.kata_names[0]);
+            println!("No kata name provided");
+            return;
+        }
+        create_day();
+        copy_kata(args);
+        return;
+    }
+
+    match args.run.unwrap() {
+        args::Run::Run { kata_name } => {
+            // run makefile command using "make" shell in the kata_name folder
+            let path = format!("{}/{}", get_dst_path(args.days_dir.clone()), kata_name);
+            run_make_command(kata_name, path)
+        }
+    }
 }
