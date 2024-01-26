@@ -9,12 +9,6 @@ fn main() {
     let args = Args::parse();
 
     if args.run.is_none() {
-        if args.kata_names.is_empty() {
-            // TODO: bug, when installing, it creates the days folder even tho no kata name is provided
-            println!("{}", args.kata_names[0]);
-            println!("No kata name provided");
-            return;
-        }
         create_day();
         copy_kata(args);
         return;
