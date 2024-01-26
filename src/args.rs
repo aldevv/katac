@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-use katac::{get_curday, get_dst, get_src};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None, arg_required_else_help(true))]
@@ -7,11 +6,15 @@ use katac::{get_curday, get_dst, get_src};
 pub struct Args {
     /// Custom directory to copy katas from (default: ./katas)
     #[arg(short, long)]
-    katas_dir: Option<String>,
+    pub katas_dir: Option<String>,
 
     /// Custom directory to copy katas to everyday (default: ./days)
     #[arg(short, long)]
     pub days_dir: Option<String>,
+
+    /// Number of katas you want to do today, randomly taken from katas.toml
+    #[arg(short, long)]
+    pub random: Option<u8>,
 
     #[command(subcommand)]
     pub run: Option<Run>,
@@ -29,16 +32,4 @@ pub enum Run {
         #[arg(required = true, num_args = 1..)]
         kata_names: Vec<String>,
     },
-}
-
-pub fn copy_kata(args: Args) {
-    let copy_options = fs_extra::dir::CopyOptions::new();
-    for kata_name in &args.kata_names {
-        let src = get_src(kata_name, args.katas_dir.clone());
-        let dst = get_dst(args.days_dir.clone());
-        match fs_extra::copy_items(&[src], dst, &copy_options) {
-            Ok(_) => println!("Copying {} to day{}...", kata_name, get_curday()),
-            Err(e) => println!("Error: {}", e),
-        }
-    }
 }

@@ -1,6 +1,11 @@
 use log::info;
+use rand::{self, seq::SliceRandom, thread_rng};
+use serde::Deserialize;
 use std::process::Command;
 use std::{fs, path::PathBuf};
+use toml;
+
+pub mod args;
 
 pub fn get_curday() -> u32 {
     let day_folder_name = "days";
@@ -94,4 +99,61 @@ pub fn run_make_command(kata_name: String, path: String) -> std::process::Child 
         .stderr(std::process::Stdio::inherit())
         .spawn()
         .expect("failed to run the kata")
+}
+// Top level struct to hold the TOML data.
+#[derive(Deserialize, Debug)]
+struct Data {
+    katas: Katas,
+}
+
+#[derive(Deserialize, Debug)]
+struct Katas {
+    random: Vec<String>,
+}
+
+pub fn read_katas_file(random: Option<u8>) -> Vec<String> {
+    info!("Reading katas.toml file");
+    let random = random.expect("random is not a valid number");
+
+    let str =
+        fs::read_to_string("katas.toml").expect("Something went wrong reading the katas.toml file");
+    let tom: Data = toml::from_str(&str).expect("Something went wrong reading the katas.toml file");
+
+    let mut kata_names = tom.katas.random;
+    kata_names.shuffle(&mut thread_rng());
+    if random > kata_names.len() as u8 {
+        println!("random number is higher than the number of katas in the katas.toml file");
+        return Vec::new();
+    }
+    return kata_names;
+}
+
+pub fn get_random_katas(random: Option<u8>, katas_dir: Option<String>) -> Vec<String> {
+    let mut kata_names: Vec<String>;
+
+    if std::path::Path::new("katas.toml").exists() {
+        kata_names = read_katas_file(random)
+    } else {
+        info!("no katas.toml found, reading katas folder for random katas");
+        // kata_names becomes all files inside the katas folder
+        kata_names = std::fs::read_dir(katas_dir.clone().unwrap_or(get_katas_dir()))
+            .expect("Unable to read katas folder")
+            .filter_map(|e| e.ok())
+            .filter_map(|e| e.file_name().into_string().ok())
+            .collect();
+        kata_names.shuffle(&mut thread_rng())
+    }
+    return kata_names[0..random.unwrap() as usize].to_vec();
+}
+
+pub fn copy_kata(kata_names: Vec<String>, katas_dir: Option<String>, days_dir: Option<String>) {
+    let copy_options = fs_extra::dir::CopyOptions::new();
+    for kata_name in &kata_names {
+        let src = get_src(kata_name, katas_dir.clone());
+        let dst = get_dst(days_dir.clone());
+        match fs_extra::copy_items(&[src], dst, &copy_options) {
+            Ok(_) => println!("Copying {} to day{}...", kata_name, get_curday()),
+            Err(e) => println!("Error: {}", e),
+        }
+    }
 }
