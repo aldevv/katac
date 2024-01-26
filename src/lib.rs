@@ -84,14 +84,14 @@ pub fn get_dst(days_dir: Option<String>) -> PathBuf {
     return PathBuf::from(dst_path);
 }
 
-pub fn run_make_command(kata_name: String, path: String) {
+pub fn run_make_command(kata_name: String, path: String) -> std::process::Child {
+    info!("Running {}, in {}", kata_name, get_short_path(path.clone()),);
     Command::new("make")
         .arg("run")
+        .arg("-s")
         .current_dir(path.clone())
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
         .spawn()
-        .expect("failed to run the kata");
-
-    info!("Running {}, in {}", kata_name, get_short_path(path.clone()),);
+        .expect("failed to run the kata")
 }

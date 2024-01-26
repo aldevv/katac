@@ -25,10 +25,9 @@ pub struct Args {
 pub enum Run {
     /// Katas you want to run today (requires a makefile with the  'run' target in the kata's root folder)
     Run {
-        // TODO: add a way to run multiple katas in parallel or in sequence
-        /// Kata to run
-        #[arg(required = true, num_args = 1)]
-        kata_name: String,
+        /// Katas to run
+        #[arg(required = true, num_args = 1..)]
+        kata_names: Vec<String>,
     },
 }
 
