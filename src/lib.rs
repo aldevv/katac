@@ -7,13 +7,11 @@ use toml;
 
 pub mod args;
 
-pub fn get_curday() -> u32 {
-    let day_folder_name = "days";
-
+pub fn get_curday(day_folder_name: &String) -> u32 {
     // check if folder is empty
-    match fs::read_dir(day_folder_name) {
+    match fs::read_dir(day_folder_name.clone()) {
         Err(_) => {
-            fs::create_dir(day_folder_name).unwrap();
+            fs::create_dir(day_folder_name.clone()).unwrap();
         }
         Ok(_) => {}
     }
@@ -29,11 +27,11 @@ pub fn get_curday() -> u32 {
 }
 
 // Create a new day folder
-pub fn create_day() {
-    let day_folder_name = "days";
-    let day_num = get_curday();
+pub fn create_day(days_dir: Option<String>) {
+    let day_folder_name = days_dir.unwrap_or(get_days_dir());
+    let day_num = get_curday(&day_folder_name);
     let path = format!("{}/day{}", day_folder_name, day_num + 1);
-    fs::create_dir(path).unwrap();
+    fs::create_dir(path).expect("failed to create the day folder");
 }
 
 pub fn get_katas_dir() -> String {
@@ -81,7 +79,12 @@ pub fn get_short_path(path: String) -> String {
 
 pub fn get_dst_path(days_dir: Option<String>) -> String {
     let days_dir = days_dir.unwrap_or(get_days_dir());
-    return format!("{}/day{}", days_dir, get_curday());
+    let day = get_curday(&days_dir);
+    if day == 0 {
+        println!("No kata to run was found, start a day first");
+        std::process::exit(1);
+    }
+    return format!("{}/day{}", days_dir, day);
 }
 
 pub fn get_dst(days_dir: Option<String>) -> PathBuf {
@@ -152,7 +155,11 @@ pub fn copy_kata(kata_names: Vec<String>, katas_dir: Option<String>, days_dir: O
         let src = get_src(kata_name, katas_dir.clone());
         let dst = get_dst(days_dir.clone());
         match fs_extra::copy_items(&[src], dst, &copy_options) {
-            Ok(_) => println!("Copying {} to day{}...", kata_name, get_curday()),
+            Ok(_) => println!(
+                "Copying {} to day{}...",
+                kata_name,
+                get_curday(&days_dir.clone().unwrap_or(get_days_dir()))
+            ),
             Err(e) => println!("Error: {}", e),
         }
     }

@@ -22,7 +22,7 @@ fn main() {
             kata_names = args.kata_names.clone();
         }
 
-        create_day();
+        create_day(args.days_dir.clone());
         copy_kata(kata_names, args.katas_dir, args.days_dir);
         return;
     }

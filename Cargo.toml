@@ -17,3 +17,6 @@ toml = "0.8.8"
 [[bin]]
 name = "katac"
 path = "src/main.rs"
+
+[dev-dependencies]
+assert_cmd = "2.0.13"

@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+ARG RUST_VERSION=1.73.0
+ARG APP_NAME=katac
+
+FROM --platform=$BUILDPLATFORM rust:${RUST_VERSION}-alpine AS tests
+ARG APP_NAME
+WORKDIR /app
+
+
+RUN apk add --no-cache clang lld musl-dev git file
+
+ARG TARGETPLATFORM
+
+RUN apk add --no-cache musl-dev gcc
+
+COPY src src 
+COPY tests tests 
+COPY Cargo.toml .
+COPY Cargo.lock .
+
+
+RUN --mount=type=cache,target=/app/target/,id=rust-cache-${APP_NAME}-${TARGETPLATFORM} \
+    --mount=type=cache,target=/usr/local/cargo/git/db \
+    --mount=type=cache,target=/usr/local/cargo/registry/ \
+cargo build --locked --release --target-dir ./target && \
+cp ./target/$(cargo --print-target-triple)/release/$APP_NAME /bin/${APP_NAME} 
+
+CMD ["cargo", "test"]

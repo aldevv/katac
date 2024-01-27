@@ -1,0 +1,2 @@
+run:
+	cat index.js
