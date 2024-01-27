@@ -11,7 +11,7 @@ RUN apk add --no-cache clang lld musl-dev git file
 
 ARG TARGETPLATFORM
 
-RUN apk add --no-cache musl-dev gcc
+RUN apk add --no-cache musl-dev gcc make
 
 COPY src src 
 COPY tests tests 

@@ -5,8 +5,6 @@ use std::process::Command;
 use std::{fs, path::PathBuf};
 use toml;
 
-pub mod args;
-
 pub fn get_curday(day_folder_name: &String) -> u32 {
     // check if folder is empty
     match fs::read_dir(day_folder_name.clone()) {
@@ -97,7 +95,7 @@ pub fn run_make_command(kata_name: String, path: String) -> std::process::Child 
     Command::new("make")
         .arg("run")
         .arg("-s")
-        .current_dir(path.clone())
+        .current_dir(path)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
         .spawn()
