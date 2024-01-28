@@ -138,3 +138,64 @@ fn test_random_no_config_file() {
         cleanup(&test_day_folder);
     }
 }
+
+#[test]
+fn test_run_kata_no_makefile() {
+    let test_day_folder = format!("{}_run_no_makefile", DAY_FOLDER);
+    Command::new(PRG)
+        .args(&["foo"])
+        .env("KATAS_DIR", "tests/example_katas")
+        .env("DAYS_DIR", &test_day_folder)
+        .assert()
+        .stdout("Copying foo to day1...\n");
+
+    Command::new(PRG)
+        .args(&["run", "foo"])
+        .env("DAYS_DIR", &test_day_folder)
+        .assert()
+        .stdout(
+            r#"
+> Running foo [1/1]
+_______________________
+No Makefile found in tests/day_test_run_no_makefile/day1/foo
+"#,
+        );
+    cleanup(&test_day_folder);
+}
+
+#[test]
+fn test_run_all() {
+    let test_day_folder = format!("{}_run_all", DAY_FOLDER);
+    Command::new(PRG)
+        .args(&["foo", "bar", "baz"])
+        .env("KATAS_DIR", "tests/example_katas")
+        .env("DAYS_DIR", &test_day_folder)
+        .assert()
+        .stdout(
+            r#"Copying foo to day1...
+Copying bar to day1...
+Copying baz to day1...
+"#,
+        );
+
+    Command::new(PRG)
+        .args(&["run"])
+        .env("DAYS_DIR", &test_day_folder)
+        .assert()
+        .stdout(
+            r#"
+> Running foo [1/3]
+_______________________
+No Makefile found in tests/day_test_run_all/day1/foo
+
+> Running baz [2/3]
+_______________________
+console.log("hello world");
+
+> Running bar [3/3]
+_______________________
+No Makefile found in tests/day_test_run_all/day1/bar
+"#,
+        );
+    cleanup(&test_day_folder);
+}
