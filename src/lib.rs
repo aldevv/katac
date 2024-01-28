@@ -71,7 +71,7 @@ pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
     create_day(&days_dir);
     let copy_options = fs_extra::dir::CopyOptions::new();
     for kata_name in kata_names {
-        let src = PathBuf::from(&kata_filepath(kata_name, &katas_dir));
+        let src = PathBuf::from(&kata_path(kata_name, &katas_dir));
         let dst = PathBuf::from(curday_path(&days_dir));
         match fs_extra::copy_items(&[src], dst, &copy_options) {
             Ok(_) => println!("Copying {} to day{}...", kata_name, curday(&days_dir)),
@@ -90,8 +90,8 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>) {
     };
 
     for (i, kata_name) in kata_names.iter().enumerate() {
-        let path = format!("{}/{}", curday_path, &kata_name);
-        let makefile_path = format!("{}/Makefile", path);
+        let curday_kata_path = curday_kata_path(&days_dir, kata_name);
+        let makefile_path = format!("{}/Makefile", curday_kata_path);
         println!(
             "\n> Running {} [{}/{}]\n_______________________",
             kata_name,
@@ -99,11 +99,11 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>) {
             kata_names.len()
         );
         if !std::path::Path::new(&makefile_path).exists() {
-            println!("No Makefile found in {}", path);
+            println!("No Makefile found in {}", curday_kata_path);
             continue;
         }
 
-        let mut child = run_make_command(kata_name.to_string(), path);
+        let mut child = run_make_command(kata_name.to_string(), curday_kata_path);
         child.wait().expect("failed to wait on child");
     }
 }
@@ -142,7 +142,7 @@ fn read_katas_dir(katas_dir: &String) -> Vec<String> {
 
 fn read_curday(curday_path: &String) -> Vec<String> {
     return std::fs::read_dir(curday_path)
-        .expect("Unable to read katas folder")
+        .expect("Unable to read current day contents")
         .filter_map(|e| e.ok())
         .filter_map(|e| e.file_name().into_string().ok())
         .collect();
@@ -176,7 +176,7 @@ fn days_dir(days_dir: Option<String>) -> String {
     return DAYS_DIR.to_string();
 }
 
-fn kata_filepath(kata_name: &str, katas_dir: &String) -> String {
+fn kata_path(kata_name: &str, katas_dir: &String) -> String {
     return format!("{}/{}", katas_dir, kata_name);
 }
 
@@ -189,7 +189,7 @@ fn curday_path(days_dir: &String) -> String {
     return format!("{}/day{}", days_dir, day);
 }
 
-pub fn dst_short_filepath(path: String) -> String {
+fn curday_path_short(path: String) -> String {
     return path
         .split("/")
         .collect::<Vec<&str>>()
@@ -202,11 +202,15 @@ pub fn dst_short_filepath(path: String) -> String {
         .join("/");
 }
 
+fn curday_kata_path(days_dir: &String, kata_name: &String) -> String {
+    return format!("{}/{}", curday_path(days_dir), kata_name);
+}
+
 fn run_make_command(kata_name: String, path: String) -> std::process::Child {
     info!(
         "Running {}, in {}",
         kata_name,
-        dst_short_filepath(path.clone()),
+        curday_path_short(path.clone()),
     );
     Command::new("make")
         .arg("run")
@@ -233,13 +237,13 @@ fn read_config_file(config_file: String) -> Vec<String> {
     info!("Reading katas.toml file");
 
     let str =
-        fs::read_to_string(config_file).expect("Something went wrong reading the katas.toml file");
-    let tom: Data = toml::from_str(&str).expect("Something went wrong reading the katas.toml file");
+        fs::read_to_string(config_file).expect("Something went wrong reading the config file");
+    let tom: Data = toml::from_str(&str).expect("Something went wrong reading the config file");
 
     let mut kata_names = tom.katas.random;
     kata_names.shuffle(&mut thread_rng());
     if kata_names.len() == 0 {
-        println!("katas.toml is empty");
+        println!("config file is empty");
         std::process::exit(1);
     }
     return kata_names;
