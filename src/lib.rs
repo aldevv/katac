@@ -92,33 +92,29 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>) {
     for (i, kata_name) in kata_names.iter().enumerate() {
         let path = format!("{}/{}", curday_path, &kata_name);
         let makefile_path = format!("{}/Makefile", path);
-        if !std::path::Path::new(&makefile_path).exists() {
-            println!("No Makefile found in {}", path);
-            continue;
-        }
-
         println!(
             "\n> Running {} [{}/{}]\n_______________________",
             kata_name,
             i + 1,
             kata_names.len()
         );
+        if !std::path::Path::new(&makefile_path).exists() {
+            println!("No Makefile found in {}", path);
+            continue;
+        }
+
         let mut child = run_make_command(kata_name.to_string(), path);
-        let code = child.wait().expect("failed to wait on child");
-        assert!(code.success());
+        child.wait().expect("failed to wait on child");
     }
 }
 
 pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
-    let mut kata_names: Vec<String>;
-
-    // let config_file = args.config.clone().unwrap_or(CONFIG_FILE.to_string());
-
     let config_file = match args.config.clone() {
         Some(config_file) => config_file,
         None => CONFIG_FILE.to_string(),
     };
 
+    let mut kata_names: Vec<String>;
     if std::path::Path::new(&config_file).exists() {
         kata_names = read_config_file(config_file);
         if number_of_katas > kata_names.len() as u8 {
