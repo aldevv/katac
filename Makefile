@@ -1,8 +1,14 @@
-test: build
-	docker run --rm katac_tests
+app: build
+	docker run --rm katac sh
 
 build:
-	docker build -f Dockerfile.tests -t katac_tests . 
-
-build-app:
 	docker build -t katac .
+
+test: build-test
+	docker run --rm katac_test
+
+build-test:
+	docker build -f Dockerfile.tests -t katac_test . 
+
+it: build-test
+	docker run -it --rm katac_test sh

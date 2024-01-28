@@ -31,7 +31,7 @@ RUN apk add --no-cache clang lld musl-dev git file
 ARG TARGETPLATFORM
 
 # Install cross compilation build dependencies.
-RUN xx-apk add --no-cache musl-dev gcc
+RUN xx-apk add --no-cache musl-dev gcc 
 
 # Build the application.
 # Leverage a cache mount to /usr/local/cargo/registry/
@@ -62,6 +62,8 @@ xx-verify /bin/${APP_NAME}
 # reproducability is important, consider using a digest
 # (e.g., alpine@sha256:664888ac9cfd28068e062c991ebcff4b4c7307dc8dd4df9e728bedde5c449d91).
 FROM alpine:3.18 AS final
+
+RUN xx-apk add --no-cache make 
 
 # Create a non-privileged user that the app will run under.
 # See https://docs.docker.com/go/dockerfile-user-best-practices/

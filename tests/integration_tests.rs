@@ -1,42 +1,140 @@
 use assert_cmd::Command;
 const DAY_FOLDER: &str = "tests/day_test";
+const PRG: &str = "katac";
+
+fn cleanup(day_folder: &String) {
+    std::fs::remove_dir_all(&day_folder).unwrap();
+}
 
 #[test]
 fn test_copy_kata() {
     let test_day_folder = format!("{}_copy", DAY_FOLDER);
-    Command::new("katac")
+    Command::new(PRG)
         .args(&[
-            "hello_world",
+            "foo",
             "--days-dir",
             &test_day_folder,
             "--katas-dir",
             "tests/example_katas",
         ])
         .assert()
-        .stdout("Copying hello_world to day1...\n");
-    std::fs::remove_dir_all(&test_day_folder).unwrap();
+        .stdout("Copying foo to day1...\n");
+    cleanup(&test_day_folder);
 }
 
 #[test]
 fn test_run_kata() {
     let test_day_folder = format!("{}_run", DAY_FOLDER);
-    Command::new("katac")
-        .args(&["hello_world"])
+    Command::new(PRG)
+        .args(&["baz"])
         .env("KATAS_DIR", "tests/example_katas")
         .env("DAYS_DIR", &test_day_folder)
         .assert()
-        .stdout("Copying hello_world to day1...\n");
+        .stdout("Copying baz to day1...\n");
 
-    Command::new("katac")
-        .args(&["run", "hello_world"])
+    Command::new(PRG)
+        .args(&["run", "baz"])
         .env("DAYS_DIR", &test_day_folder)
         .assert()
         .stdout(
             r#"
-> Running hello_world [1/1]
+> Running baz [1/1]
 _______________________
 console.log("hello world");
 "#,
         );
-    std::fs::remove_dir_all(&test_day_folder).unwrap();
+    cleanup(&test_day_folder);
+}
+
+#[test]
+fn test_multiple_kata() {
+    let test_day_folder = format!("{}_multiple", DAY_FOLDER);
+    Command::new(PRG)
+        .args(&[
+            "--days-dir",
+            &test_day_folder,
+            "--katas-dir",
+            "tests/example_katas",
+            "foo",
+            "bar",
+            "baz",
+        ])
+        .assert()
+        .stdout("Copying foo to day1...\nCopying bar to day1...\nCopying baz to day1...\n");
+    cleanup(&test_day_folder);
+}
+
+#[test]
+fn test_random_with_config_file() {
+    std::fs::write(
+        "tests/katac.toml",
+        r#"
+[katas]
+random = ["foo", "bar", "baz"]
+"#,
+    )
+    .expect("Unable to write config file");
+
+    let test_day_folder = format!("{}_random_with_config", DAY_FOLDER);
+    let katas = vec!["foo", "bar", "baz"];
+    for _ in 0..5 {
+        Command::new(PRG)
+            .args(&[
+                "--days-dir",
+                &test_day_folder,
+                "--katas-dir",
+                "tests/example_katas",
+                "--config",
+                "tests/katac.toml",
+                "random",
+                "2",
+            ])
+            .assert()
+            .code(0);
+
+        let day_folder = std::path::Path::new(&test_day_folder).join("day1");
+        assert!(day_folder.read_dir().unwrap().count() == 2);
+
+        for f in day_folder.read_dir().unwrap() {
+            let folder = f.unwrap();
+            let folder_name = folder.file_name().into_string().unwrap();
+            assert!(katas.contains(&folder_name.as_str()));
+        }
+
+        cleanup(&test_day_folder);
+    }
+    std::fs::remove_file("tests/katac.toml").unwrap();
+}
+
+#[test]
+fn test_random_no_config_file() {
+    let test_day_folder = format!("{}_random_no_config", DAY_FOLDER);
+
+    let katas = vec!["foo", "bar", "baz"];
+    for _ in 0..5 {
+        Command::new(PRG)
+            .args(&[
+                "--days-dir",
+                &test_day_folder,
+                "--katas-dir",
+                "tests/example_katas",
+                "--config",
+                "none",
+                "random",
+                "2",
+            ])
+            .assert()
+            .code(0);
+
+        let day_folder = std::path::Path::new(&test_day_folder).join("day1");
+        assert!(day_folder.read_dir().unwrap().count() == 2);
+
+        for f in day_folder.read_dir().unwrap() {
+            let folder = f.unwrap();
+            let folder_name = folder.file_name().into_string().unwrap();
+            assert!(katas.contains(&folder_name.as_str()));
+        }
+
+        cleanup(&test_day_folder);
+    }
 }
