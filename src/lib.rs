@@ -39,8 +39,8 @@ pub enum Subcommands {
     /// Katas you want to run today (requires a makefile with the  'run' target in the kata's root folder)
     Run {
         /// Katas to run
-        #[arg(required = true, num_args = 1..)]
-        kata_names: Vec<String>,
+        #[arg(required = false, num_args = 1..)]
+        kata_names: Option<Vec<String>>,
     },
 
     /// Number of katas you want to do today, randomly taken from katas.toml
@@ -51,7 +51,7 @@ pub enum Subcommands {
     },
 }
 
-pub fn get_curday(days_dir: &String) -> u32 {
+fn curday(days_dir: &String) -> u32 {
     match fs::read_dir(days_dir) {
         Err(_) => 0,
         Ok(dir) => dir
@@ -60,7 +60,7 @@ pub fn get_curday(days_dir: &String) -> u32 {
             .map(|e| e.trim_start_matches("day").to_string())
             .filter_map(|e| e.parse::<u32>().ok())
             .max()
-            .unwrap_or(0),
+            .unwrap(),
     }
 }
 
@@ -71,19 +71,26 @@ pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
     create_day(&days_dir);
     let copy_options = fs_extra::dir::CopyOptions::new();
     for kata_name in kata_names {
-        let src = src(kata_name, &katas_dir);
-        let dst = dst(&days_dir);
+        let src = PathBuf::from(&kata_filepath(kata_name, &katas_dir));
+        let dst = PathBuf::from(curday_path(&days_dir));
         match fs_extra::copy_items(&[src], dst, &copy_options) {
-            Ok(_) => println!("Copying {} to day{}...", kata_name, get_curday(&days_dir)),
+            Ok(_) => println!("Copying {} to day{}...", kata_name, curday(&days_dir)),
             Err(e) => println!("Error: {}", e),
         }
     }
 }
 
-pub fn run_katas(args: &Args, kata_names: &Vec<String>) {
+pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>) {
+    let days_dir = days_dir(args.days_dir.clone());
+    let curday_path = curday_path(&days_dir);
+
+    let kata_names = match kata_names {
+        Some(kata_names) => kata_names,
+        None => read_curday(&curday_path),
+    };
+
     for (i, kata_name) in kata_names.iter().enumerate() {
-        let days_dir = days_dir(args.days_dir.clone());
-        let path = format!("{}/{}", dst_path(&days_dir), &kata_name);
+        let path = format!("{}/{}", curday_path, &kata_name);
         let makefile_path = format!("{}/Makefile", path);
         if !std::path::Path::new(&makefile_path).exists() {
             println!("No Makefile found in {}", path);
@@ -123,19 +130,30 @@ pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
     } else {
         info!("no katas.toml found, reading katas folder for random katas");
         // kata_names becomes all files inside the katas folder
-        let katas_dir = katas_dir(args.katas_dir.clone());
-        kata_names = std::fs::read_dir(katas_dir)
-            .expect("Unable to read katas folder")
-            .filter_map(|e| e.ok())
-            .filter_map(|e| e.file_name().into_string().ok())
-            .collect();
+        kata_names = read_katas_dir(&katas_dir(args.katas_dir.clone()));
         kata_names.shuffle(&mut thread_rng())
     }
     return kata_names[0..number_of_katas as usize].to_vec();
 }
 
+fn read_katas_dir(katas_dir: &String) -> Vec<String> {
+    return std::fs::read_dir(katas_dir)
+        .expect("Unable to read katas folder")
+        .filter_map(|e| e.ok())
+        .filter_map(|e| e.file_name().into_string().ok())
+        .collect();
+}
+
+fn read_curday(curday_path: &String) -> Vec<String> {
+    return std::fs::read_dir(curday_path)
+        .expect("Unable to read katas folder")
+        .filter_map(|e| e.ok())
+        .filter_map(|e| e.file_name().into_string().ok())
+        .collect();
+}
+
 fn create_day(days_dir: &String) {
-    let day_num = get_curday(&days_dir);
+    let day_num = curday(&days_dir);
     let path = format!("{}/day{}", days_dir, day_num + 1);
     fs::create_dir_all(path).expect("failed to create the day folder");
 }
@@ -162,26 +180,17 @@ fn days_dir(days_dir: Option<String>) -> String {
     return DAYS_DIR.to_string();
 }
 
-fn src_filepath(kata_name: &str, katas_dir: &String) -> String {
+fn kata_filepath(kata_name: &str, katas_dir: &String) -> String {
     return format!("{}/{}", katas_dir, kata_name);
 }
 
-fn src(kata_name: &str, katas_dir: &String) -> PathBuf {
-    return PathBuf::from(src_filepath(kata_name, katas_dir));
-}
-
-fn dst_path(days_dir: &String) -> String {
-    let day = get_curday(&days_dir);
+fn curday_path(days_dir: &String) -> String {
+    let day = curday(&days_dir);
     if day == 0 {
         println!("No kata to run was found, start a day first");
         std::process::exit(1);
     }
     return format!("{}/day{}", days_dir, day);
-}
-
-fn dst(days_dir: &String) -> PathBuf {
-    let dst_path = dst_path(&days_dir);
-    return PathBuf::from(dst_path);
 }
 
 pub fn dst_short_filepath(path: String) -> String {
