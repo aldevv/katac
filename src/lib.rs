@@ -6,9 +6,9 @@ use std::process::Command;
 use std::{fs, path::PathBuf};
 use toml;
 
-const CONFIG_FILE: &str = "katac.toml";
 const KATAS_DIR: &str = "katas";
 const DAYS_DIR: &str = "days";
+const CONFIG_FILE: &str = "katac.toml";
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None, arg_required_else_help(true))]
