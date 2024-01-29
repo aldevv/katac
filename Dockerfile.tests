@@ -21,8 +21,6 @@ COPY Cargo.lock .
 
 RUN --mount=type=cache,target=/app/target/,id=rust-cache-${APP_NAME}-${TARGETPLATFORM} \
     --mount=type=cache,target=/usr/local/cargo/git/db \
-    --mount=type=cache,target=/usr/local/cargo/registry/ \
-cargo build --locked --release --target-dir ./target && \
-cp ./target/$(cargo --print-target-triple)/release/$APP_NAME /bin/${APP_NAME}
+    --mount=type=cache,target=/usr/local/cargo/registry/
 
 CMD ["cargo", "test"]
