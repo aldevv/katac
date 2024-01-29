@@ -1,3 +1,5 @@
+[![Rust](https://github.com/aldevv/katac_rs/actions/workflows/rust.yml/badge.svg)](https://github.com/aldevv/katac_rs/actions/workflows/rust.yml) 
+
 Katac is a simple command-line application designed to streamline the process of practicing coding katas. It allows you to organize your katas by copying them into dedicated day folders and easily run them when you're done
 
 # Features
