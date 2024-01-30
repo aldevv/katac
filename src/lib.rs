@@ -2,9 +2,10 @@ use clap::{Parser, Subcommand};
 use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::Deserialize;
+use std::io::Write;
+use std::os::unix::prelude::PermissionsExt;
 use std::process::Command;
 use std::{fs, path::PathBuf};
-use toml;
 
 const KATAS_DIR: &str = "katas";
 const DAYS_DIR: &str = "days";
@@ -48,6 +49,13 @@ pub enum Subcommands {
         /// Katas to run
         #[arg(required = true, num_args = 1..)]
         number_of_katas: u8,
+    },
+
+    /// Create a new kata
+    New {
+        /// Name of the kata you want to create
+        #[arg(required = true, num_args = 1..)]
+        kata_name: String,
     },
 }
 
@@ -103,9 +111,90 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>) {
             continue;
         }
 
-        let mut child = run_make_command(kata_name.to_string(), curday_kata_path);
-        child.wait().expect("failed to wait on child");
+        match run(kata_name.to_string(), curday_kata_path) {
+            Some(mut child) => child.wait().expect("failed to wait on child"),
+            None => continue,
+        };
     }
+}
+
+fn run(kata_name: String, curday_kata_path: String) -> Option<std::process::Child> {
+    if Command::new("make")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .status()
+        .is_ok()
+    {
+        return run_make_command(kata_name.to_string(), curday_kata_path);
+    }
+    run_os_command(kata_name.to_string(), curday_kata_path)
+}
+
+fn run_make_command(kata_name: String, path: String) -> Option<std::process::Child> {
+    info!(
+        "Running {}, in {}",
+        kata_name,
+        curday_path_short(path.clone()),
+    );
+
+    let makefile_path = format!("{}/Makefile", path);
+    if !std::path::Path::new(&makefile_path).exists() {
+        println!("No Makefile found in {}", path);
+        return None;
+    }
+
+    Some(
+        Command::new("make")
+            .arg("run")
+            .arg("-s")
+            .current_dir(path)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .expect("failed to run the kata"),
+    )
+}
+
+fn run_os_command(kata_name: String, curday_kata_path: String) -> Option<std::process::Child> {
+    info!(
+        "Running {}, in {}",
+        kata_name,
+        curday_path_short(curday_kata_path.clone()),
+    );
+
+    if cfg!(target_os = "windows") {
+        let bat_file_path = format!("{}/run.bat", curday_kata_path);
+        if !std::path::Path::new(&bat_file_path).exists() {
+            println!("No run.bat file found in {}", curday_kata_path);
+            return None;
+        }
+
+        return Some(
+            Command::new("cmd")
+                .arg("/C")
+                .arg(format!("cd {} && run.bat", curday_kata_path))
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .expect("failed to run the kata"),
+        );
+    }
+
+    let sh_file_path = format!("{}/run.sh", curday_kata_path);
+    if !std::path::Path::new(&sh_file_path).exists() {
+        println!("No run.sh file found in {}", curday_kata_path);
+        return None;
+    }
+
+    return Some(
+        Command::new("sh")
+            .arg("-c")
+            .arg(format!("cd {} && run.sh", curday_kata_path))
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .expect("failed to run the kata"),
+    );
 }
 
 pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
@@ -129,27 +218,81 @@ pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
         kata_names = read_katas_dir(&katas_dir(args.katas_dir.clone()));
         kata_names.shuffle(&mut thread_rng())
     }
-    return kata_names[0..number_of_katas as usize].to_vec();
+    kata_names[0..number_of_katas as usize].to_vec()
+}
+
+// creates a new kata in the kata_dir folder
+pub fn new_kata(args: &Args, kata_name: String) {
+    let kata_path = kata_path(&kata_name, &katas_dir(args.katas_dir.clone()));
+    if std::path::Path::new(&kata_path).exists() {
+        println!("Kata {} already exists", kata_name);
+        std::process::exit(1);
+    }
+    std::fs::create_dir_all(&kata_path).expect("failed to create the kata folder");
+
+    if Command::new("make")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .status()
+        .is_ok()
+    {
+        create_makefile(&kata_path);
+        return;
+    }
+
+    create_os_run_file(&kata_path);
+}
+
+fn create_makefile(kata_path: &String) {
+    let content = "run:\n\t@echo \"TODO: add your run command here\"";
+    let mut f = std::fs::File::create(format!("{}/Makefile", kata_path))
+        .expect("failed to create the Makefile");
+    f.write_all(content.as_bytes())
+        .expect("failed to write to the Makefile");
+}
+
+fn create_os_run_file(kata_path: &String) {
+    if cfg!(target_os = "windows") {
+        let content = "TODO: add your run command here";
+        let mut f = std::fs::File::create(format!("{}/run.bat", kata_path))
+            .expect("failed to create the windows run file");
+        f.write_all(content.as_bytes())
+            .expect("failed to write to the windows run.bat file");
+        return;
+    }
+
+    let content = "#!/usr/bin/env bash\n\n# TODO: replace this line with  your run command (example: npm run test)";
+    let mut f = std::fs::File::create(format!("{}/run.sh", kata_path))
+        .expect("failed to create the linux run file");
+
+    f.write_all(content.as_bytes())
+        .expect("failed to write to the linux run.sh file");
+
+    std::fs::set_permissions(
+        format!("{}/run.sh", kata_path),
+        fs::Permissions::from_mode(0o755),
+    )
+    .expect("failed to set permissions on the linux run file");
 }
 
 fn read_katas_dir(katas_dir: &String) -> Vec<String> {
-    return std::fs::read_dir(katas_dir)
+    std::fs::read_dir(katas_dir)
         .expect("Unable to read katas folder")
         .filter_map(|e| e.ok())
         .filter_map(|e| e.file_name().into_string().ok())
-        .collect();
+        .collect()
 }
 
 fn read_curday(curday_path: &String) -> Vec<String> {
-    return std::fs::read_dir(curday_path)
+    std::fs::read_dir(curday_path)
         .expect("Unable to read current day contents")
         .filter_map(|e| e.ok())
         .filter_map(|e| e.file_name().into_string().ok())
-        .collect();
+        .collect()
 }
 
 fn create_day(days_dir: &String) {
-    let day_num = curday(&days_dir);
+    let day_num = curday(days_dir);
     let path = format!("{}/day{}", days_dir, day_num + 1);
     fs::create_dir_all(path).expect("failed to create the day folder");
 }
@@ -162,7 +305,7 @@ fn katas_dir(katas_dir: Option<String>) -> String {
     if let Ok(getenv) = std::env::var("KATAS_DIR") {
         return getenv;
     }
-    return KATAS_DIR.to_string();
+    KATAS_DIR.to_string()
 }
 
 fn days_dir(days_dir: Option<String>) -> String {
@@ -173,25 +316,25 @@ fn days_dir(days_dir: Option<String>) -> String {
     if let Ok(getenv) = std::env::var("DAYS_DIR") {
         return getenv;
     }
-    return DAYS_DIR.to_string();
+    DAYS_DIR.to_string()
 }
 
 fn kata_path(kata_name: &str, katas_dir: &String) -> String {
-    return format!("{}/{}", katas_dir, kata_name);
+    format!("{}/{}", katas_dir, kata_name)
 }
 
 fn curday_path(days_dir: &String) -> String {
-    let day = curday(&days_dir);
+    let day = curday(days_dir);
     if day == 0 {
         println!("No kata to run was found, start a day first");
         std::process::exit(1);
     }
-    return format!("{}/day{}", days_dir, day);
+    format!("{}/day{}", days_dir, day)
 }
 
 fn curday_path_short(path: String) -> String {
     return path
-        .split("/")
+        .split('/')
         .collect::<Vec<&str>>()
         .iter()
         .rev()
@@ -203,23 +346,7 @@ fn curday_path_short(path: String) -> String {
 }
 
 fn curday_kata_path(days_dir: &String, kata_name: &String) -> String {
-    return format!("{}/{}", curday_path(days_dir), kata_name);
-}
-
-fn run_make_command(kata_name: String, path: String) -> std::process::Child {
-    info!(
-        "Running {}, in {}",
-        kata_name,
-        curday_path_short(path.clone()),
-    );
-    Command::new("make")
-        .arg("run")
-        .arg("-s")
-        .current_dir(path)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .spawn()
-        .expect("failed to run the kata")
+    format!("{}/{}", curday_path(days_dir), kata_name)
 }
 
 // Top level struct to hold the TOML data.
@@ -242,9 +369,9 @@ fn read_config_file(config_file: String) -> Vec<String> {
 
     let mut kata_names = tom.katas.random;
     kata_names.shuffle(&mut thread_rng());
-    if kata_names.len() == 0 {
+    if kata_names.is_empty() {
         println!("config file is empty");
         std::process::exit(1);
     }
-    return kata_names;
+    kata_names
 }

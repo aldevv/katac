@@ -1,4 +1,4 @@
-name: Rust
+name: Pipeline
 
 on:
   push:
@@ -10,12 +10,16 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  pipeline:
 
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
+    - name: formatting
+      run: cargo fmt --all -- --check
+    - name: linting
+      run: cargo clippy
     - name: Build
       run: cargo build --verbose
     - name: Run tests
