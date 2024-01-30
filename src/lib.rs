@@ -230,7 +230,12 @@ pub fn new_kata(args: &Args, kata_name: String) {
     }
     std::fs::create_dir_all(&kata_path).expect("failed to create the kata folder");
 
-    if Command::new("make").arg("--version").status().is_ok() {
+    if Command::new("make")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .status()
+        .is_ok()
+    {
         create_makefile(&kata_path);
         return;
     }
@@ -252,14 +257,14 @@ fn create_os_run_file(kata_path: &String) {
         let mut f = std::fs::File::create(format!("{}/run.bat", kata_path))
             .expect("failed to create the windows run file");
         f.write_all(content.as_bytes())
-            .expect("failed to write to the windows run file");
+            .expect("failed to write to the windows run.bat file");
     }
 
     let content = "#!/usr/bin/env bash\n\n# TODO: replace this line with  your run command (example: npm run test)";
     let mut f = std::fs::File::create(format!("{}/run.sh", kata_path))
         .expect("failed to create the linux run file");
     f.write_all(content.as_bytes())
-        .expect("failed to write to the linux run file");
+        .expect("failed to write to the linux run.sh file");
 }
 
 fn read_katas_dir(katas_dir: &String) -> Vec<String> {
