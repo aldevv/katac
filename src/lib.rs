@@ -75,11 +75,18 @@ pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
     let katas_dir = katas_dir(args.katas_dir.clone());
     let days_dir = days_dir(args.days_dir.clone());
 
-    create_day(&days_dir);
+    let nextday_path = nextday_path(&days_dir);
     let copy_options = fs_extra::dir::CopyOptions::new();
     for kata_name in kata_names {
         let src = PathBuf::from(&kata_path(kata_name, &katas_dir));
-        let dst = PathBuf::from(curday_path(&days_dir));
+        if !std::path::Path::new(&src).exists() {
+            println!("Kata {} does not exist", kata_name);
+            std::process::exit(1);
+        }
+        let dst = PathBuf::from(&nextday_path);
+        if !dst.exists() {
+            create_day(&nextday_path);
+        }
         match fs_extra::copy_items(&[src], dst, &copy_options) {
             Ok(_) => println!("Copying {} to day{}...", kata_name, curday(&days_dir)),
             Err(e) => println!("Error: {}", e),
@@ -294,10 +301,8 @@ fn read_curday(curday_path: &String) -> Vec<String> {
         .collect()
 }
 
-fn create_day(days_dir: &String) {
-    let day_num = curday(days_dir);
-    let path = format!("{}/day{}", days_dir, day_num + 1);
-    fs::create_dir_all(path).expect("failed to create the day folder");
+fn create_day(nextday_path: &String) {
+    fs::create_dir_all(nextday_path).expect("failed to create the day folder");
 }
 
 fn katas_dir(katas_dir: Option<String>) -> String {
@@ -327,12 +332,11 @@ fn kata_path(kata_name: &str, katas_dir: &String) -> String {
 }
 
 fn curday_path(days_dir: &String) -> String {
-    let day = curday(days_dir);
-    if day == 0 {
-        println!("No kata to run was found, start a day first");
-        std::process::exit(1);
-    }
-    format!("{}/day{}", days_dir, day)
+    format!("{}/day{}", days_dir, curday(days_dir))
+}
+
+fn nextday_path(days_dir: &String) -> String {
+    format!("{}/day{}", days_dir, curday(days_dir) + 1)
 }
 
 fn curday_path_short(path: String) -> String {

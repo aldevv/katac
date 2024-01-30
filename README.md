@@ -32,7 +32,7 @@ this:
 ```make
 # Makefile
 run:
-    go run hello.go
+	go run hello.go
 ```
 
 ## begin a new day
