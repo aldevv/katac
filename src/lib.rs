@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::Deserialize;
+use std::io::Write;
 use std::process::Command;
 use std::{fs, path::PathBuf};
 use toml;
@@ -48,6 +49,13 @@ pub enum Subcommands {
         /// Katas to run
         #[arg(required = true, num_args = 1..)]
         number_of_katas: u8,
+    },
+
+    /// Create a new kata
+    New {
+        /// Name of the kata you want to create
+        #[arg(required = true, num_args = 1..)]
+        kata_name: String,
     },
 }
 
@@ -103,9 +111,90 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>) {
             continue;
         }
 
-        let mut child = run_make_command(kata_name.to_string(), curday_kata_path);
-        child.wait().expect("failed to wait on child");
+        match run(kata_name.to_string(), curday_kata_path) {
+            Some(mut child) => child.wait().expect("failed to wait on child"),
+            None => continue,
+        };
     }
+}
+
+fn run(kata_name: String, curday_kata_path: String) -> Option<std::process::Child> {
+    if Command::new("make")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .status()
+        .is_ok()
+    {
+        return run_make_command(kata_name.to_string(), curday_kata_path);
+    }
+    return run_os_command(kata_name.to_string(), curday_kata_path);
+}
+
+fn run_make_command(kata_name: String, path: String) -> Option<std::process::Child> {
+    info!(
+        "Running {}, in {}",
+        kata_name,
+        curday_path_short(path.clone()),
+    );
+
+    let makefile_path = format!("{}/Makefile", path);
+    if !std::path::Path::new(&makefile_path).exists() {
+        println!("No Makefile found in {}", path);
+        return None;
+    }
+
+    Some(
+        Command::new("make")
+            .arg("run")
+            .arg("-s")
+            .current_dir(path)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .expect("failed to run the kata"),
+    )
+}
+
+fn run_os_command(kata_name: String, curday_kata_path: String) -> Option<std::process::Child> {
+    info!(
+        "Running {}, in {}",
+        kata_name,
+        curday_path_short(curday_kata_path.clone()),
+    );
+
+    if cfg!(target_os = "windows") {
+        let bat_file_path = format!("{}/run.bat", curday_kata_path);
+        if !std::path::Path::new(&bat_file_path).exists() {
+            println!("No run.bat file found in {}", curday_kata_path);
+            return None;
+        }
+
+        return Some(
+            Command::new("cmd")
+                .arg("/C")
+                .arg(format!("cd {} && run.bat", curday_kata_path))
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .expect("failed to run the kata"),
+        );
+    }
+
+    let sh_file_path = format!("{}/run.sh", curday_kata_path);
+    if !std::path::Path::new(&sh_file_path).exists() {
+        println!("No run.sh file found in {}", curday_kata_path);
+        return None;
+    }
+
+    return Some(
+        Command::new("sh")
+            .arg("-c")
+            .arg(format!("cd {} && run.sh", curday_kata_path))
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .expect("failed to run the kata"),
+    );
 }
 
 pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
@@ -130,6 +219,47 @@ pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
         kata_names.shuffle(&mut thread_rng())
     }
     return kata_names[0..number_of_katas as usize].to_vec();
+}
+
+// creates a new kata in the kata_dir folder
+pub fn new_kata(args: &Args, kata_name: String) {
+    let kata_path = kata_path(&kata_name, &katas_dir(args.katas_dir.clone()));
+    if std::path::Path::new(&kata_path).exists() {
+        println!("Kata {} already exists", kata_name);
+        std::process::exit(1);
+    }
+    std::fs::create_dir_all(&kata_path).expect("failed to create the kata folder");
+
+    if Command::new("make").arg("--version").status().is_ok() {
+        create_makefile(&kata_path);
+        return;
+    }
+
+    create_os_run_file(&kata_path);
+}
+
+fn create_makefile(kata_path: &String) {
+    let content = "run:\"\n\t@echo \"TODO: add your run command here\"";
+    let mut f = std::fs::File::create(format!("{}/Makefile", kata_path))
+        .expect("failed to create the Makefile");
+    f.write_all(content.as_bytes())
+        .expect("failed to write to the Makefile");
+}
+
+fn create_os_run_file(kata_path: &String) {
+    if cfg!(target_os = "windows") {
+        let content = "TODO: add your run command here";
+        let mut f = std::fs::File::create(format!("{}/run.bat", kata_path))
+            .expect("failed to create the windows run file");
+        f.write_all(content.as_bytes())
+            .expect("failed to write to the windows run file");
+    }
+
+    let content = "#!/usr/bin/env bash\n\n# TODO: replace this line with  your run command (example: npm run test)";
+    let mut f = std::fs::File::create(format!("{}/run.sh", kata_path))
+        .expect("failed to create the linux run file");
+    f.write_all(content.as_bytes())
+        .expect("failed to write to the linux run file");
 }
 
 fn read_katas_dir(katas_dir: &String) -> Vec<String> {
@@ -204,22 +334,6 @@ fn curday_path_short(path: String) -> String {
 
 fn curday_kata_path(days_dir: &String, kata_name: &String) -> String {
     return format!("{}/{}", curday_path(days_dir), kata_name);
-}
-
-fn run_make_command(kata_name: String, path: String) -> std::process::Child {
-    info!(
-        "Running {}, in {}",
-        kata_name,
-        curday_path_short(path.clone()),
-    );
-    Command::new("make")
-        .arg("run")
-        .arg("-s")
-        .current_dir(path)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .spawn()
-        .expect("failed to run the kata")
 }
 
 // Top level struct to hold the TOML data.
