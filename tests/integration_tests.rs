@@ -43,7 +43,7 @@ fn test_run_kata() -> TestResult {
         .stdout(
             r#"
 > Running baz [1/1]
-_______________________
+--------------------
 console.log("hello world");
 "#,
         );
@@ -164,7 +164,7 @@ fn test_run_kata_no_makefile() -> TestResult {
         .stdout(
             r#"
 > Running foo [1/1]
-_______________________
+--------------------
 No Makefile found in tests/day_test_run_no_makefile/day1/foo
 "#,
         );

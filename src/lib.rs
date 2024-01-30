@@ -92,12 +92,12 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>) {
     for (i, kata_name) in kata_names.iter().enumerate() {
         let curday_kata_path = curday_kata_path(&days_dir, kata_name);
         let makefile_path = format!("{}/Makefile", curday_kata_path);
-        println!(
-            "\n> Running {} [{}/{}]\n_______________________",
-            kata_name,
-            i + 1,
-            kata_names.len()
-        );
+        let run_str = format!("\n> Running {} [{}/{}]", kata_name, i + 1, kata_names.len());
+        let width = run_str.chars().count();
+
+        println!("{}", run_str);
+        println!("{}", "-".repeat(width));
+
         if !std::path::Path::new(&makefile_path).exists() {
             println!("No Makefile found in {}", curday_kata_path);
             continue;
