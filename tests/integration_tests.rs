@@ -4,7 +4,7 @@ const DAY_FOLDER: &str = "tests/day_test";
 const PRG: &str = "katac";
 
 fn cleanup(day_folder: &String) {
-    std::fs::remove_dir_all(&day_folder).unwrap();
+    std::fs::remove_dir_all(day_folder).unwrap();
 }
 
 type TestResult = Result<(), Box<dyn Error>>;
@@ -13,7 +13,7 @@ type TestResult = Result<(), Box<dyn Error>>;
 fn test_copy_kata() -> TestResult {
     let test_day_folder = format!("{}_copy", DAY_FOLDER);
     Command::cargo_bin(PRG)?
-        .args(&[
+        .args([
             "foo",
             "--days-dir",
             &test_day_folder,
@@ -30,14 +30,14 @@ fn test_copy_kata() -> TestResult {
 fn test_run_kata() -> TestResult {
     let test_day_folder = format!("{}_run", DAY_FOLDER);
     Command::cargo_bin(PRG)?
-        .args(&["baz"])
+        .args(["baz"])
         .env("KATAS_DIR", "tests/example_katas")
         .env("DAYS_DIR", &test_day_folder)
         .assert()
         .stdout("Copying baz to day1...\n");
 
     Command::cargo_bin(PRG)?
-        .args(&["run", "baz"])
+        .args(["run", "baz"])
         .env("DAYS_DIR", &test_day_folder)
         .assert()
         .stdout(
@@ -55,7 +55,7 @@ console.log("hello world");
 fn test_multiple_kata() -> TestResult {
     let test_day_folder = format!("{}_multiple", DAY_FOLDER);
     Command::cargo_bin(PRG)?
-        .args(&[
+        .args([
             "--days-dir",
             &test_day_folder,
             "--katas-dir",
@@ -82,10 +82,10 @@ random = ["foo", "bar", "baz"]
     .expect("Unable to write config file");
 
     let test_day_folder = format!("{}_random_with_config", DAY_FOLDER);
-    let katas = vec!["foo", "bar", "baz"];
+    let katas = ["foo", "bar", "baz"];
     for _ in 0..5 {
         Command::cargo_bin(PRG)?
-            .args(&[
+            .args([
                 "--days-dir",
                 &test_day_folder,
                 "--katas-dir",
@@ -117,10 +117,10 @@ random = ["foo", "bar", "baz"]
 fn test_random_no_config_file() -> TestResult {
     let test_day_folder = format!("{}_random_no_config", DAY_FOLDER);
 
-    let katas = vec!["foo", "bar", "baz"];
+    let katas = ["foo", "bar", "baz"];
     for _ in 0..5 {
         Command::cargo_bin(PRG)?
-            .args(&[
+            .args([
                 "--days-dir",
                 &test_day_folder,
                 "--katas-dir",
@@ -151,14 +151,14 @@ fn test_random_no_config_file() -> TestResult {
 fn test_run_kata_no_makefile() -> TestResult {
     let test_day_folder = format!("{}_run_no_makefile", DAY_FOLDER);
     Command::cargo_bin(PRG)?
-        .args(&["foo"])
+        .args(["foo"])
         .env("KATAS_DIR", "tests/example_katas")
         .env("DAYS_DIR", &test_day_folder)
         .assert()
         .stdout("Copying foo to day1...\n");
 
     Command::cargo_bin(PRG)?
-        .args(&["run", "foo"])
+        .args(["run", "foo"])
         .env("DAYS_DIR", &test_day_folder)
         .assert()
         .stdout(
@@ -176,7 +176,7 @@ No Makefile found in tests/day_test_run_no_makefile/day1/foo
 fn test_run_all() -> TestResult {
     let test_day_folder = format!("{}_run_all", DAY_FOLDER);
     let cmd = Command::cargo_bin(PRG)?
-        .args(&["foo", "bar", "baz"])
+        .args(["foo", "bar", "baz"])
         .env("KATAS_DIR", "tests/example_katas")
         .env("DAYS_DIR", &test_day_folder)
         .assert();
@@ -187,7 +187,7 @@ fn test_run_all() -> TestResult {
     }
 
     let cmd = Command::cargo_bin(PRG)?
-        .args(&["run"])
+        .args(["run"])
         .env("DAYS_DIR", &test_day_folder)
         .assert();
     let run_output = String::from_utf8(cmd.get_output().stdout.clone())?;

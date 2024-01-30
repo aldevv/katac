@@ -5,7 +5,6 @@ use serde::Deserialize;
 use std::io::Write;
 use std::process::Command;
 use std::{fs, path::PathBuf};
-use toml;
 
 const KATAS_DIR: &str = "katas";
 const DAYS_DIR: &str = "days";
@@ -127,7 +126,7 @@ fn run(kata_name: String, curday_kata_path: String) -> Option<std::process::Chil
     {
         return run_make_command(kata_name.to_string(), curday_kata_path);
     }
-    return run_os_command(kata_name.to_string(), curday_kata_path);
+    run_os_command(kata_name.to_string(), curday_kata_path)
 }
 
 fn run_make_command(kata_name: String, path: String) -> Option<std::process::Child> {
@@ -218,7 +217,7 @@ pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
         kata_names = read_katas_dir(&katas_dir(args.katas_dir.clone()));
         kata_names.shuffle(&mut thread_rng())
     }
-    return kata_names[0..number_of_katas as usize].to_vec();
+    kata_names[0..number_of_katas as usize].to_vec()
 }
 
 // creates a new kata in the kata_dir folder
@@ -244,7 +243,7 @@ pub fn new_kata(args: &Args, kata_name: String) {
 }
 
 fn create_makefile(kata_path: &String) {
-    let content = "run:\"\n\t@echo \"TODO: add your run command here\"";
+    let content = "run:\n\t@echo \"TODO: add your run command here\"";
     let mut f = std::fs::File::create(format!("{}/Makefile", kata_path))
         .expect("failed to create the Makefile");
     f.write_all(content.as_bytes())
@@ -268,23 +267,23 @@ fn create_os_run_file(kata_path: &String) {
 }
 
 fn read_katas_dir(katas_dir: &String) -> Vec<String> {
-    return std::fs::read_dir(katas_dir)
+    std::fs::read_dir(katas_dir)
         .expect("Unable to read katas folder")
         .filter_map(|e| e.ok())
         .filter_map(|e| e.file_name().into_string().ok())
-        .collect();
+        .collect()
 }
 
 fn read_curday(curday_path: &String) -> Vec<String> {
-    return std::fs::read_dir(curday_path)
+    std::fs::read_dir(curday_path)
         .expect("Unable to read current day contents")
         .filter_map(|e| e.ok())
         .filter_map(|e| e.file_name().into_string().ok())
-        .collect();
+        .collect()
 }
 
 fn create_day(days_dir: &String) {
-    let day_num = curday(&days_dir);
+    let day_num = curday(days_dir);
     let path = format!("{}/day{}", days_dir, day_num + 1);
     fs::create_dir_all(path).expect("failed to create the day folder");
 }
@@ -297,7 +296,7 @@ fn katas_dir(katas_dir: Option<String>) -> String {
     if let Ok(getenv) = std::env::var("KATAS_DIR") {
         return getenv;
     }
-    return KATAS_DIR.to_string();
+    KATAS_DIR.to_string()
 }
 
 fn days_dir(days_dir: Option<String>) -> String {
@@ -308,25 +307,25 @@ fn days_dir(days_dir: Option<String>) -> String {
     if let Ok(getenv) = std::env::var("DAYS_DIR") {
         return getenv;
     }
-    return DAYS_DIR.to_string();
+    DAYS_DIR.to_string()
 }
 
 fn kata_path(kata_name: &str, katas_dir: &String) -> String {
-    return format!("{}/{}", katas_dir, kata_name);
+    format!("{}/{}", katas_dir, kata_name)
 }
 
 fn curday_path(days_dir: &String) -> String {
-    let day = curday(&days_dir);
+    let day = curday(days_dir);
     if day == 0 {
         println!("No kata to run was found, start a day first");
         std::process::exit(1);
     }
-    return format!("{}/day{}", days_dir, day);
+    format!("{}/day{}", days_dir, day)
 }
 
 fn curday_path_short(path: String) -> String {
     return path
-        .split("/")
+        .split('/')
         .collect::<Vec<&str>>()
         .iter()
         .rev()
@@ -338,7 +337,7 @@ fn curday_path_short(path: String) -> String {
 }
 
 fn curday_kata_path(days_dir: &String, kata_name: &String) -> String {
-    return format!("{}/{}", curday_path(days_dir), kata_name);
+    format!("{}/{}", curday_path(days_dir), kata_name)
 }
 
 // Top level struct to hold the TOML data.
@@ -361,9 +360,9 @@ fn read_config_file(config_file: String) -> Vec<String> {
 
     let mut kata_names = tom.katas.random;
     kata_names.shuffle(&mut thread_rng());
-    if kata_names.len() == 0 {
+    if kata_names.is_empty() {
         println!("config file is empty");
         std::process::exit(1);
     }
-    return kata_names;
+    kata_names
 }
