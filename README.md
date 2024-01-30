@@ -60,6 +60,15 @@ you can run it by doing this:
 katac run
 ```
 
+# Install
+## Releases
+you can download the release for your specific OS and put it in your PATH
+
+## Cargo
+```bash
+cargo install katac
+```
+
 # Dependencies
 - make
 
