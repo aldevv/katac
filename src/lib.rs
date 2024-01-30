@@ -3,6 +3,7 @@ use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::Deserialize;
 use std::io::Write;
+use std::os::unix::prelude::PermissionsExt;
 use std::process::Command;
 use std::{fs, path::PathBuf};
 
@@ -257,13 +258,28 @@ fn create_os_run_file(kata_path: &String) {
             .expect("failed to create the windows run file");
         f.write_all(content.as_bytes())
             .expect("failed to write to the windows run.bat file");
+
+        // TODO: test this
+        std::fs::set_permissions(
+            format!("{}/run.bat", kata_path),
+            fs::Permissions::from_mode(0o755),
+        )
+        .expect("failed to set permissions on the windows run file");
+        return;
     }
 
     let content = "#!/usr/bin/env bash\n\n# TODO: replace this line with  your run command (example: npm run test)";
     let mut f = std::fs::File::create(format!("{}/run.sh", kata_path))
         .expect("failed to create the linux run file");
+
     f.write_all(content.as_bytes())
         .expect("failed to write to the linux run.sh file");
+
+    std::fs::set_permissions(
+        format!("{}/run.sh", kata_path),
+        fs::Permissions::from_mode(0o755),
+    )
+    .expect("failed to set permissions on the linux run file");
 }
 
 fn read_katas_dir(katas_dir: &String) -> Vec<String> {
