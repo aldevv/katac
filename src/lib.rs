@@ -41,6 +41,10 @@ pub enum Subcommands {
         /// Katas to run
         #[arg(required = false, num_args = 1..)]
         kata_names: Option<Vec<String>>,
+
+        /// Run custom command for given kata
+        #[arg(short, long)]
+        command: Option<String>,
     },
 
     /// Number of katas you want to do today, randomly taken from katas.toml
@@ -94,7 +98,7 @@ pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
     }
 }
 
-pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>) {
+pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>, command: Option<String>) {
     let days_dir = days_dir(args.days_dir.clone());
     let curday_path = curday_path(&days_dir);
 
@@ -105,15 +109,19 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>) {
 
     for (i, kata_name) in kata_names.iter().enumerate() {
         let curday_kata_path = curday_kata_path(&days_dir, kata_name);
-        let makefile_path = format!("{}/Makefile", curday_kata_path);
         let run_str = format!("\n> Running {} [{}/{}]", kata_name, i + 1, kata_names.len());
-        let width = run_str.chars().count();
-
         println!("{}", run_str);
+        let width = run_str.chars().count();
         println!("{}", "-".repeat(width));
 
-        if !std::path::Path::new(&makefile_path).exists() {
-            println!("No Makefile found in {}", curday_kata_path);
+        if let Some(command) = command.clone() {
+            let mut command = command.split_whitespace();
+            let mut child = Command::new(command.next().unwrap())
+                .args(command)
+                .current_dir(curday_kata_path)
+                .spawn()
+                .expect("failed to run the kata");
+            child.wait().expect("failed to wait on child");
             continue;
         }
 
