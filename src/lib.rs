@@ -3,7 +3,6 @@ use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::Deserialize;
 use std::io::Write;
-use std::os::unix::prelude::PermissionsExt;
 use std::process::Command;
 use std::{fs, path::PathBuf};
 
@@ -268,11 +267,15 @@ fn create_os_run_file(kata_path: &String) {
     f.write_all(content.as_bytes())
         .expect("failed to write to the linux run.sh file");
 
-    std::fs::set_permissions(
-        format!("{}/run.sh", kata_path),
-        fs::Permissions::from_mode(0o755),
-    )
-    .expect("failed to set permissions on the linux run file");
+    #[cfg(unix)]
+    {
+        use std::os::unix::prelude::PermissionsExt;
+        std::fs::set_permissions(
+            format!("{}/run.sh", kata_path),
+            fs::Permissions::from_mode(0o755),
+        )
+        .expect("failed to set permissions on the linux run file");
+    }
 }
 
 fn read_katas_dir(katas_dir: &String) -> Vec<String> {
