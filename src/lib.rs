@@ -10,6 +10,8 @@ const KATAS_DIR: &str = "katas";
 const DAYS_DIR: &str = "days";
 const CONFIG_FILE: &str = "katac.toml";
 
+const USE_MAKEFILE: bool = true;
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None, arg_required_else_help(true))]
 /// Katac is a tool to help you do katas everyday
@@ -104,7 +106,7 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>, command: Option<S
 
     let kata_names = match kata_names {
         Some(kata_names) => kata_names,
-        None => read_curday(&curday_path),
+        None => katas_in_curday(&curday_path),
     };
 
     for (i, kata_name) in kata_names.iter().enumerate() {
@@ -133,11 +135,12 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>, command: Option<S
 }
 
 fn run(kata_name: String, curday_kata_path: String) -> Option<std::process::Child> {
-    if Command::new("make")
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .status()
-        .is_ok()
+    if USE_MAKEFILE
+        && Command::new("make")
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .status()
+            .is_ok()
     {
         return run_make_command(kata_name.to_string(), curday_kata_path);
     }
@@ -219,7 +222,7 @@ pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
 
     let mut kata_names: Vec<String>;
     if std::path::Path::new(&config_file).exists() {
-        kata_names = read_config_file(config_file);
+        kata_names = read_random_katas_from_config_file(config_file);
         if number_of_katas > kata_names.len() as u8 {
             println!(
                 "random number is higher than the number of katas found in the katas.toml file"
@@ -229,7 +232,7 @@ pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
     } else {
         info!("no katas.toml found, reading katas folder for random katas");
         // kata_names becomes all files inside the katas folder
-        kata_names = read_katas_dir(&katas_dir(args.katas_dir.clone()));
+        kata_names = katas_in_kata_dir(&katas_dir(args.katas_dir.clone()));
         kata_names.shuffle(&mut thread_rng())
     }
     kata_names[0..number_of_katas as usize].to_vec()
@@ -244,11 +247,12 @@ pub fn new_kata(args: &Args, kata_name: String) {
     }
     std::fs::create_dir_all(&kata_path).expect("failed to create the kata folder");
 
-    if Command::new("make")
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .status()
-        .is_ok()
+    if USE_MAKEFILE
+        && Command::new("make")
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .status()
+            .is_ok()
     {
         create_makefile(&kata_path);
         return;
@@ -293,7 +297,7 @@ fn create_os_run_file(kata_path: &String) {
     }
 }
 
-fn read_katas_dir(katas_dir: &String) -> Vec<String> {
+fn katas_in_kata_dir(katas_dir: &String) -> Vec<String> {
     std::fs::read_dir(katas_dir)
         .expect("Unable to read katas folder")
         .filter_map(|e| e.ok())
@@ -301,7 +305,7 @@ fn read_katas_dir(katas_dir: &String) -> Vec<String> {
         .collect()
 }
 
-fn read_curday(curday_path: &String) -> Vec<String> {
+fn katas_in_curday(curday_path: &String) -> Vec<String> {
     std::fs::read_dir(curday_path)
         .expect("Unable to read current day contents")
         .filter_map(|e| e.ok())
@@ -314,25 +318,23 @@ fn create_day(nextday_path: &String) {
 }
 
 fn katas_dir(katas_dir: Option<String>) -> String {
-    if let Some(katas_dir) = katas_dir {
-        return katas_dir;
+    match katas_dir {
+        Some(katas_dir) => katas_dir,
+        None => match std::env::var("KATAS_DIR") {
+            Ok(getenv) => getenv,
+            Err(_) => KATAS_DIR.to_string(),
+        },
     }
-
-    if let Ok(getenv) = std::env::var("KATAS_DIR") {
-        return getenv;
-    }
-    KATAS_DIR.to_string()
 }
 
 fn days_dir(days_dir: Option<String>) -> String {
-    if let Some(days_dir) = days_dir {
-        return days_dir;
+    match days_dir {
+        Some(days_dir) => days_dir,
+        None => match std::env::var("DAYS_DIR") {
+            Ok(getenv) => getenv,
+            Err(_) => DAYS_DIR.to_string(),
+        },
     }
-
-    if let Ok(getenv) = std::env::var("DAYS_DIR") {
-        return getenv;
-    }
-    DAYS_DIR.to_string()
 }
 
 fn kata_path(kata_name: &str, katas_dir: &String) -> String {
@@ -364,7 +366,6 @@ fn curday_kata_path(days_dir: &String, kata_name: &String) -> String {
     format!("{}/{}", curday_path(days_dir), kata_name)
 }
 
-// Top level struct to hold the TOML data.
 #[derive(Deserialize, Debug)]
 struct Data {
     katas: Katas,
@@ -375,12 +376,16 @@ struct Katas {
     random: Vec<String>,
 }
 
-fn read_config_file(config_file: String) -> Vec<String> {
+fn read_config_file(config_file: String) -> Data {
     info!("Reading katas.toml file");
 
     let str =
         fs::read_to_string(config_file).expect("Something went wrong reading the config file");
-    let tom: Data = toml::from_str(&str).expect("Something went wrong reading the config file");
+    toml::from_str(&str).expect("Something went wrong reading the config file")
+}
+
+fn read_random_katas_from_config_file(config_file: String) -> Vec<String> {
+    let tom = read_config_file(config_file);
 
     let mut kata_names = tom.katas.random;
     kata_names.shuffle(&mut thread_rng());
