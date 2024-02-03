@@ -9,14 +9,32 @@ Katac is a simple command-line application designed to streamline the process of
 - **Effortless Copying:** Copy a kata into the designated day folder with a single command.
 - **Seamless Execution:** Run katas effortlessly from within their respective day folders.
 
+# Install
+## Releases
+you can download the release for your specific OS and put it in your PATH
+
+## Cargo
+```bash
+cargo install katac
+```
+
+# Dependencies
+- make
+
 # Usage
+## options
+katac requires 2 things to work, a katas directory, and a days directory, you should run all
+commands in the parent folder of these 2, otherwise you must provide the respective paths with the
+--katas-dir and --days-dir options
+
+
 ## create a kata
-1. create a `katas` folder
-2. add the name for a kata you want to create, let's try `hello_world`
+1. create a folder named `katas` 
+2. add the name for a kata you want to create
 ```bash
 mkdir -p katas/hello_world
 ```
-3. add the skeleton you will begin the kata with each day
+3. add the skeleton, this is the entrypoint for each day
 ```go
 // hello.go
 func helloWorld() {
@@ -25,14 +43,6 @@ func helloWorld() {
 func main() {
     helloWorld()
 }
-```
-
-if you want to run the kata after finishing a day, you will also need to add a Makefile like
-this:
-```make
-# Makefile
-run:
-	go run hello.go
 ```
 
 ## begin a new day
@@ -44,7 +54,14 @@ katac hello_world
 this will create a `days` folder which will contain a `day1` containing your kata
 
 ## run your kata
-after you are done writing your kata like in this example:
+you can run your kata if the kata has a Makefile (if you have make), or a run.sh (run.bat for windows)
+```make
+# Makefile
+run:
+	go run hello.go
+```
+
+after you are done writing the kata like in this example:
 ```go
 import "fmt"
 func helloWorld() {
@@ -61,19 +78,28 @@ you can run it by doing this:
 katac run
 ```
 
-# Install
-## Releases
-you can download the release for your specific OS and put it in your PATH
-
-## Cargo
-```bash
-cargo install katac
+## change katas folder and days folder permanently
+you can create a katac.toml file that looks like this:
+```toml
+[katas]
+katas_dir = "go-katas"
+days_dir = "go-days"
 ```
 
-# Dependencies
-- make
-
+## run random katas
+you can run random katas by using the random command and giving the number of random katas
+you want to do, like this
+```bash
+# this will copy 4 randomly selected katas from your katas directory to your days directory
+katac random 4
+```
+### randomly select a subset of katas
+if you want to choose the katas the random command will work on, you can add this property to
+the katac.toml file
+```toml
+[katas]
+random = ["Map", "LRU", "Trie", "Stack"]
+```
 
 # Contributing
-
 If you have any ideas for improvements or find any issues, feel free to open an issue or submit a pull request.

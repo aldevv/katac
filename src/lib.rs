@@ -8,7 +8,7 @@ use std::{fs, path::PathBuf};
 
 const KATAS_DIR: &str = "katas";
 const DAYS_DIR: &str = "days";
-const CONFIG_FILE: &str = "katac.toml";
+const CONFIG_FILE_NAME: &str = "katac.toml";
 
 const USE_MAKEFILE: bool = true;
 
@@ -64,6 +64,19 @@ pub enum Subcommands {
     },
 }
 
+// config file
+#[derive(Deserialize, Debug)]
+struct Data {
+    katas: Katas,
+}
+
+#[derive(Deserialize, Debug)]
+struct Katas {
+    random: Option<Vec<String>>,
+    katas_dir: Option<String>,
+    days_dir: Option<String>,
+}
+
 fn curday(days_dir: &String) -> u32 {
     match fs::read_dir(days_dir) {
         Err(_) => 0,
@@ -77,9 +90,57 @@ fn curday(days_dir: &String) -> u32 {
     }
 }
 
+// priorities are:
+// --katas-dir arg
+// KATAS_DIR env var
+// katas_dir config file property
+// default value
+fn katas_dir(args: &Args) -> String {
+    match args.katas_dir.clone() {
+        Some(katas_dir) => katas_dir,
+        None => match std::env::var("KATAS_DIR") {
+            Ok(getenv) => getenv,
+            Err(_) => {
+                let config_file_name = match args.config.clone() {
+                    Some(config_file) => config_file,
+                    None => CONFIG_FILE_NAME.to_string(),
+                };
+                match read_config_file(config_file_name).katas.katas_dir {
+                    Some(katas_dir) => katas_dir,
+                    None => KATAS_DIR.to_string(),
+                }
+            }
+        },
+    }
+}
+
+// priorities are:
+// --days-dir arg
+// DAYS_DIR env var
+// days_dir config file property
+// default value
+fn days_dir(args: &Args) -> String {
+    match args.days_dir.clone() {
+        Some(days_dir) => days_dir,
+        None => match std::env::var("DAYS_DIR") {
+            Ok(getenv) => getenv,
+            Err(_) => {
+                let config_file_name = match args.config.clone() {
+                    Some(config_file) => config_file,
+                    None => CONFIG_FILE_NAME.to_string(),
+                };
+                match read_config_file(config_file_name).katas.days_dir {
+                    Some(days_dir) => days_dir,
+                    None => DAYS_DIR.to_string(),
+                }
+            }
+        },
+    }
+}
+
 pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
-    let katas_dir = katas_dir(args.katas_dir.clone());
-    let days_dir = days_dir(args.days_dir.clone());
+    let katas_dir = katas_dir(args);
+    let days_dir = days_dir(args);
 
     let nextday_path = nextday_path(&days_dir);
     let copy_options = fs_extra::dir::CopyOptions::new();
@@ -101,7 +162,7 @@ pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
 }
 
 pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>, command: Option<String>) {
-    let days_dir = days_dir(args.days_dir.clone());
+    let days_dir = days_dir(args);
     let curday_path = curday_path(&days_dir);
 
     let kata_names = match kata_names {
@@ -206,7 +267,7 @@ fn run_os_command(kata_name: String, curday_kata_path: String) -> Option<std::pr
     return Some(
         Command::new("sh")
             .arg("-c")
-            .arg(format!("cd {} && run.sh", curday_kata_path))
+            .arg(format!("cd {} && ./run.sh", curday_kata_path))
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::inherit())
             .spawn()
@@ -217,7 +278,7 @@ fn run_os_command(kata_name: String, curday_kata_path: String) -> Option<std::pr
 pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
     let config_file = match args.config.clone() {
         Some(config_file) => config_file,
-        None => CONFIG_FILE.to_string(),
+        None => CONFIG_FILE_NAME.to_string(),
     };
 
     let mut kata_names: Vec<String>;
@@ -232,7 +293,7 @@ pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
     } else {
         info!("no katas.toml found, reading katas folder for random katas");
         // kata_names becomes all files inside the katas folder
-        kata_names = katas_in_kata_dir(&katas_dir(args.katas_dir.clone()));
+        kata_names = katas_in_kata_dir(&katas_dir(args));
         kata_names.shuffle(&mut thread_rng())
     }
     kata_names[0..number_of_katas as usize].to_vec()
@@ -240,7 +301,7 @@ pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
 
 // creates a new kata in the kata_dir folder
 pub fn new_kata(args: &Args, kata_name: String) {
-    let kata_path = kata_path(&kata_name, &katas_dir(args.katas_dir.clone()));
+    let kata_path = kata_path(&kata_name, &katas_dir(args));
     if std::path::Path::new(&kata_path).exists() {
         println!("Kata {} already exists", kata_name);
         std::process::exit(1);
@@ -317,26 +378,6 @@ fn create_day(nextday_path: &String) {
     fs::create_dir_all(nextday_path).expect("failed to create the day folder");
 }
 
-fn katas_dir(katas_dir: Option<String>) -> String {
-    match katas_dir {
-        Some(katas_dir) => katas_dir,
-        None => match std::env::var("KATAS_DIR") {
-            Ok(getenv) => getenv,
-            Err(_) => KATAS_DIR.to_string(),
-        },
-    }
-}
-
-fn days_dir(days_dir: Option<String>) -> String {
-    match days_dir {
-        Some(days_dir) => days_dir,
-        None => match std::env::var("DAYS_DIR") {
-            Ok(getenv) => getenv,
-            Err(_) => DAYS_DIR.to_string(),
-        },
-    }
-}
-
 fn kata_path(kata_name: &str, katas_dir: &String) -> String {
     format!("{}/{}", katas_dir, kata_name)
 }
@@ -366,28 +407,18 @@ fn curday_kata_path(days_dir: &String, kata_name: &String) -> String {
     format!("{}/{}", curday_path(days_dir), kata_name)
 }
 
-#[derive(Deserialize, Debug)]
-struct Data {
-    katas: Katas,
-}
-
-#[derive(Deserialize, Debug)]
-struct Katas {
-    random: Vec<String>,
-}
-
-fn read_config_file(config_file: String) -> Data {
+fn read_config_file(config_file_name: String) -> Data {
     info!("Reading katas.toml file");
 
     let str =
-        fs::read_to_string(config_file).expect("Something went wrong reading the config file");
+        fs::read_to_string(config_file_name).expect("Something went wrong reading the config file");
     toml::from_str(&str).expect("Something went wrong reading the config file")
 }
 
 fn read_random_katas_from_config_file(config_file: String) -> Vec<String> {
     let tom = read_config_file(config_file);
 
-    let mut kata_names = tom.katas.random;
+    let mut kata_names = tom.katas.random.unwrap_or_default();
     kata_names.shuffle(&mut thread_rng());
     if kata_names.is_empty() {
         println!("config file is empty");
