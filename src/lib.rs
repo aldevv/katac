@@ -155,7 +155,28 @@ pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
             create_day(&nextday_path);
         }
         match fs_extra::copy_items(&[src], dst, &copy_options) {
-            Ok(_) => println!("Copying {} to day{}...", kata_name, curday(&days_dir)),
+            Ok(_) => {
+                if kata_name.contains('/') {
+                    // print last element of split / in kata_name
+                    if kata_name.split('/').last().unwrap() == "" {
+                        // pop last element
+                        kata_name.split('/').collect::<Vec<&str>>().pop().unwrap();
+                        println!(
+                            "Copying {} to day{}...",
+                            kata_name.split('/').collect::<Vec<&str>>().last().unwrap(),
+                            curday(&days_dir)
+                        );
+                        return;
+                    }
+                    println!(
+                        "Copying {} to day{}...",
+                        kata_name.split('/').last().unwrap(),
+                        curday(&days_dir)
+                    );
+                    return;
+                }
+                println!("Copying {} to day{}...", kata_name, curday(&days_dir))
+            }
             Err(e) => println!("Error: {}", e),
         }
     }
@@ -379,6 +400,9 @@ fn create_day(nextday_path: &String) {
 }
 
 fn kata_path(kata_name: &str, katas_dir: &String) -> String {
+    if kata_name.contains('/') {
+        return kata_name.to_string();
+    }
     format!("{}/{}", katas_dir, kata_name)
 }
 

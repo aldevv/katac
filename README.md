@@ -22,12 +22,6 @@ cargo install katac
 - make
 
 # Usage
-## options
-katac requires 2 things to work, a katas directory, and a days directory, you should run all
-commands in the parent folder of these 2, otherwise you must provide the respective paths with the
---katas-dir and --days-dir options
-
-
 ## create a kata
 1. create a folder named `katas` 
 2. add the name for a kata you want to create
@@ -47,6 +41,7 @@ func main() {
 
 ## begin a new day
 to begin a new day run the katac command with the kata or katas you want to do:
+(it can also be a path)
 ```bash
 # katac <kata_name>...
 katac hello_world
