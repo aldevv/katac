@@ -154,32 +154,20 @@ pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
         if !dst.exists() {
             create_day(&nextday_path);
         }
-        match fs_extra::copy_items(&[src], dst, &copy_options) {
-            Ok(_) => {
-                if kata_name.contains('/') {
-                    // print last element of split / in kata_name
-                    if kata_name.split('/').last().unwrap() == "" {
-                        // pop last element
-                        kata_name.split('/').collect::<Vec<&str>>().pop().unwrap();
-                        println!(
-                            "Copying {} to day{}...",
-                            kata_name.split('/').collect::<Vec<&str>>().last().unwrap(),
-                            curday(&days_dir)
-                        );
-                        return;
-                    }
-                    println!(
-                        "Copying {} to day{}...",
-                        kata_name.split('/').last().unwrap(),
-                        curday(&days_dir)
-                    );
-                    return;
-                }
-                println!("Copying {} to day{}...", kata_name, curday(&days_dir))
-            }
+        match fs_extra::copy_items(&[src.clone()], dst, &copy_options) {
+            Ok(_) => println!(
+                "Copying {} to day{}...",
+                base_dir(src.clone()),
+                curday(&days_dir)
+            ),
+
             Err(e) => println!("Error: {}", e),
         }
     }
+}
+
+fn base_dir(path: PathBuf) -> String {
+    path.file_name().unwrap().to_str().unwrap().to_string()
 }
 
 pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>, command: Option<String>) {
