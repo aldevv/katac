@@ -3,7 +3,7 @@ use std::error::Error;
 const DAY_FOLDER: &str = "tests/day_test";
 const PRG: &str = "katac";
 
-fn cleanup(day_folder: &String) {
+fn cleanup(day_folder: &str) {
     std::fs::remove_dir_all(day_folder).unwrap();
 }
 
@@ -204,5 +204,27 @@ fn test_run_all() -> TestResult {
         }
     }
     cleanup(&test_day_folder);
+    Ok(())
+}
+
+#[test]
+fn test_new_command() -> TestResult {
+    let new_kata_folder = "tests/example_katas/foo2";
+    Command::cargo_bin(PRG)?
+        .args(["new", "foo2"])
+        .env("KATAS_DIR", "tests/example_katas")
+        .assert()
+        .stdout("foo2 created in tests/example_katas.\n");
+    cleanup(new_kata_folder);
+    Ok(())
+}
+
+#[test]
+fn test_new_command_already_exists() -> TestResult {
+    Command::cargo_bin(PRG)?
+        .args(["new", "foo"])
+        .env("KATAS_DIR", "tests/example_katas")
+        .assert()
+        .stdout("Kata foo already exists\n");
     Ok(())
 }

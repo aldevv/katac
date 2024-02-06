@@ -1,10 +1,12 @@
 use clap::{Parser, Subcommand};
+use fs_extra::dir::CopyOptions;
 use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::Deserialize;
+use std::fs::{create_dir_all, read_dir, read_to_string, File, Permissions};
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::{fs, path::PathBuf};
 
 const KATAS_DIR: &str = "katas";
 const DAYS_DIR: &str = "days";
@@ -77,8 +79,8 @@ struct Katas {
     days_dir: Option<String>,
 }
 
-fn curday(days_dir: &String) -> u32 {
-    match fs::read_dir(days_dir) {
+fn curday(days_dir: &str) -> u32 {
+    match read_dir(days_dir) {
         Err(_) => 0,
         Ok(dir) => dir
             .filter_map(|e| e.ok())
@@ -139,14 +141,10 @@ fn days_dir(args: &Args) -> String {
 }
 
 pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
-    let katas_dir = katas_dir(args);
-    let days_dir = days_dir(args);
-
-    let nextday_path = nextday_path(&days_dir);
-    let copy_options = fs_extra::dir::CopyOptions::new();
+    let nextday_path = nextday_path(&days_dir(args));
     for kata_name in kata_names {
-        let src = PathBuf::from(&kata_path(kata_name, &katas_dir));
-        if !std::path::Path::new(&src).exists() {
+        let src = kata_path(kata_name, &katas_dir(args));
+        if !src.exists() {
             println!("Kata {} does not exist", kata_name);
             std::process::exit(1);
         }
@@ -154,20 +152,19 @@ pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
         if !dst.exists() {
             create_day(&nextday_path);
         }
-        match fs_extra::copy_items(&[src.clone()], dst, &copy_options) {
-            Ok(_) => println!(
-                "Copying {} to day{}...",
-                base_dir(src.clone()),
-                curday(&days_dir)
-            ),
-
+        match fs_extra::copy_items(&[src.clone()], dst.clone(), &CopyOptions::new()) {
+            Ok(_) => println!("Copying {} to {}...", kata_name, basename(&dst)),
             Err(e) => println!("Error: {}", e),
         }
     }
 }
 
-fn base_dir(path: PathBuf) -> String {
+fn basename(path: &Path) -> String {
     path.file_name().unwrap().to_str().unwrap().to_string()
+}
+
+fn dirname(path: &Path) -> String {
+    path.parent().unwrap().to_str().unwrap().to_string()
 }
 
 pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>, command: Option<String>) {
@@ -302,7 +299,7 @@ pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
     } else {
         info!("no katas.toml found, reading katas folder for random katas");
         // kata_names becomes all files inside the katas folder
-        kata_names = katas_in_kata_dir(&katas_dir(args));
+        kata_names = katas(&katas_dir(args));
         kata_names.shuffle(&mut thread_rng())
     }
     kata_names[0..number_of_katas as usize].to_vec()
@@ -310,12 +307,14 @@ pub fn random_katas(args: &Args, number_of_katas: u8) -> Vec<String> {
 
 // creates a new kata in the kata_dir folder
 pub fn new_kata(args: &Args, kata_name: String) {
-    let kata_path = kata_path(&kata_name, &katas_dir(args));
-    if std::path::Path::new(&kata_path).exists() {
+    let kata_dir = &katas_dir(args);
+    let kata_path = kata_path(&kata_name, kata_dir);
+    if kata_path.exists() {
         println!("Kata {} already exists", kata_name);
         std::process::exit(1);
     }
-    std::fs::create_dir_all(&kata_path).expect("failed to create the kata folder");
+    create_dir_all(&kata_path).expect("failed to create the kata folder");
+    println!("{} created in {}.", kata_name, dirname(&kata_path));
 
     if USE_MAKEFILE
         && Command::new("make")
@@ -324,34 +323,35 @@ pub fn new_kata(args: &Args, kata_name: String) {
             .status()
             .is_ok()
     {
-        create_makefile(&kata_path);
+        create_makefile(kata_path);
         return;
     }
 
-    create_os_run_file(&kata_path);
+    create_os_run_file(kata_path);
 }
 
-fn create_makefile(kata_path: &String) {
+fn create_makefile(mut kata_path: PathBuf) {
     let content = "run:\n\t@echo \"TODO: add your run command here\"";
-    let mut f = std::fs::File::create(format!("{}/Makefile", kata_path))
-        .expect("failed to create the Makefile");
+    kata_path.push("Makefile");
+    let mut f = File::create(kata_path).expect("failed to create the Makefile");
     f.write_all(content.as_bytes())
         .expect("failed to write to the Makefile");
 }
 
-fn create_os_run_file(kata_path: &String) {
+fn create_os_run_file(mut kata_path: PathBuf) {
     if cfg!(target_os = "windows") {
         let content = "TODO: add your run command here";
-        let mut f = std::fs::File::create(format!("{}/run.bat", kata_path))
-            .expect("failed to create the windows run file");
+        kata_path.push("run.bat");
+        let mut f =
+            std::fs::File::create(kata_path).expect("failed to create the windows run file");
         f.write_all(content.as_bytes())
             .expect("failed to write to the windows run.bat file");
         return;
     }
 
     let content = "#!/usr/bin/env bash\n\n# TODO: replace this line with  your run command (example: npm run test)";
-    let mut f = std::fs::File::create(format!("{}/run.sh", kata_path))
-        .expect("failed to create the linux run file");
+    kata_path.push("run.sh");
+    let mut f = std::fs::File::create(&kata_path).expect("failed to create the linux run file");
 
     f.write_all(content.as_bytes())
         .expect("failed to write to the linux run.sh file");
@@ -359,16 +359,13 @@ fn create_os_run_file(kata_path: &String) {
     #[cfg(unix)]
     {
         use std::os::unix::prelude::PermissionsExt;
-        std::fs::set_permissions(
-            format!("{}/run.sh", kata_path),
-            fs::Permissions::from_mode(0o755),
-        )
-        .expect("failed to set permissions on the linux run file");
+        std::fs::set_permissions(kata_path, Permissions::from_mode(0o755))
+            .expect("failed to set permissions on the linux run file");
     }
 }
 
-fn katas_in_kata_dir(katas_dir: &String) -> Vec<String> {
-    std::fs::read_dir(katas_dir)
+fn katas(katas_dir: &String) -> Vec<String> {
+    read_dir(katas_dir)
         .expect("Unable to read katas folder")
         .filter_map(|e| e.ok())
         .filter_map(|e| e.file_name().into_string().ok())
@@ -376,7 +373,7 @@ fn katas_in_kata_dir(katas_dir: &String) -> Vec<String> {
 }
 
 fn katas_in_curday(curday_path: &String) -> Vec<String> {
-    std::fs::read_dir(curday_path)
+    read_dir(curday_path)
         .expect("Unable to read current day contents")
         .filter_map(|e| e.ok())
         .filter_map(|e| e.file_name().into_string().ok())
@@ -384,21 +381,21 @@ fn katas_in_curday(curday_path: &String) -> Vec<String> {
 }
 
 fn create_day(nextday_path: &String) {
-    fs::create_dir_all(nextday_path).expect("failed to create the day folder");
+    create_dir_all(nextday_path).expect("failed to create the day folder");
 }
 
-fn kata_path(kata_name: &str, katas_dir: &String) -> String {
+fn kata_path(kata_name: &str, katas_dir: &String) -> PathBuf {
     if kata_name.contains('/') {
-        return kata_name.to_string();
+        return PathBuf::from(kata_name.to_string());
     }
-    format!("{}/{}", katas_dir, kata_name)
+    PathBuf::from(format!("{}/{}", katas_dir, kata_name))
 }
 
 fn curday_path(days_dir: &String) -> String {
     format!("{}/day{}", days_dir, curday(days_dir))
 }
 
-fn nextday_path(days_dir: &String) -> String {
+fn nextday_path(days_dir: &str) -> String {
     format!("{}/day{}", days_dir, curday(days_dir) + 1)
 }
 
@@ -423,7 +420,7 @@ fn read_config_file(config_file_name: String) -> Data {
     info!("Reading katas.toml file");
 
     let str =
-        fs::read_to_string(config_file_name).expect("Something went wrong reading the config file");
+        read_to_string(config_file_name).expect("Something went wrong reading the config file");
     toml::from_str(&str).expect("Something went wrong reading the config file")
 }
 
