@@ -141,16 +141,15 @@ fn days_dir(args: &Args) -> String {
 }
 
 pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
-    let nextday_path = nextday_path(&days_dir(args));
+    let dst = nextday_path(&days_dir(args));
     for kata_name in kata_names {
         let src = kata_path(kata_name, &katas_dir(args));
         if !src.exists() {
             println!("Kata {} does not exist", kata_name);
             std::process::exit(1);
         }
-        let dst = PathBuf::from(&nextday_path);
         if !dst.exists() {
-            create_day(&nextday_path);
+            create_day(dst.clone());
         }
         match fs_extra::copy_items(&[src.clone()], dst.clone(), &CopyOptions::new()) {
             Ok(_) => println!("Copying {} to {}...", kata_name, basename(&dst)),
@@ -173,7 +172,7 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>, command: Option<S
 
     let kata_names = match kata_names {
         Some(kata_names) => kata_names,
-        None => katas_in_curday(&curday_path),
+        None => curday_katas(curday_path),
     };
 
     for (i, kata_name) in kata_names.iter().enumerate() {
@@ -370,7 +369,7 @@ fn katas(katas_dir: &String) -> Vec<String> {
         .collect()
 }
 
-fn katas_in_curday(curday_path: &String) -> Vec<String> {
+fn curday_katas(curday_path: PathBuf) -> Vec<String> {
     read_dir(curday_path)
         .expect("Unable to read current day contents")
         .filter_map(|e| e.ok())
@@ -378,7 +377,7 @@ fn katas_in_curday(curday_path: &String) -> Vec<String> {
         .collect()
 }
 
-fn create_day(nextday_path: &String) {
+fn create_day(nextday_path: PathBuf) {
     create_dir_all(nextday_path).expect("failed to create the day folder");
 }
 
@@ -389,16 +388,16 @@ fn kata_path(kata_name: &str, katas_dir: &String) -> PathBuf {
     PathBuf::from(format!("{}/{}", katas_dir, kata_name))
 }
 
-fn curday_path(days_dir: &String) -> String {
-    format!("{}/day{}", days_dir, curday(days_dir))
+fn curday_path(days_dir: &String) -> PathBuf {
+    PathBuf::from(format!("{}/day{}", days_dir, curday(days_dir)))
 }
 
-fn nextday_path(days_dir: &str) -> String {
-    format!("{}/day{}", days_dir, curday(days_dir) + 1)
+fn nextday_path(days_dir: &str) -> PathBuf {
+    PathBuf::from(format!("{}/day{}", days_dir, curday(days_dir) + 1))
 }
 
 fn curday_kata_path(days_dir: &String, kata_name: &String) -> PathBuf {
-    PathBuf::from(format!("{}/{}", curday_path(days_dir), kata_name))
+    curday_path(days_dir).join(kata_name)
 }
 
 fn read_config_file(config_file_name: String) -> Data {
