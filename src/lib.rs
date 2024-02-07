@@ -194,14 +194,14 @@ pub fn run_katas(args: &Args, kata_names: Option<Vec<String>>, command: Option<S
             continue;
         }
 
-        match run(kata_name.to_string(), curday_kata_path) {
+        match run(curday_kata_path) {
             Some(mut child) => child.wait().expect("failed to wait on child"),
             None => continue,
         };
     }
 }
 
-fn run(kata_name: String, curday_kata_path: String) -> Option<std::process::Child> {
+fn run(curday_kata_path: PathBuf) -> Option<std::process::Child> {
     if USE_MAKEFILE
         && Command::new("make")
             .arg("--version")
@@ -209,21 +209,20 @@ fn run(kata_name: String, curday_kata_path: String) -> Option<std::process::Chil
             .status()
             .is_ok()
     {
-        return run_make_command(kata_name.to_string(), curday_kata_path);
+        return run_make_command(curday_kata_path);
     }
-    run_os_command(kata_name.to_string(), curday_kata_path)
+    run_os_command(curday_kata_path)
 }
 
-fn run_make_command(kata_name: String, path: String) -> Option<std::process::Child> {
-    info!(
-        "Running {}, in {}",
-        kata_name,
-        curday_path_short(path.clone()),
-    );
+fn run_make_command(mut path: PathBuf) -> Option<std::process::Child> {
+    let path_str = path
+        .to_str()
+        .expect("failed to convert path to string")
+        .to_string();
 
-    let makefile_path = format!("{}/Makefile", path);
-    if !std::path::Path::new(&makefile_path).exists() {
-        println!("No Makefile found in {}", path);
+    path.push("Makefile");
+    if !path.exists() {
+        println!("No Makefile found in {}", path_str);
         return None;
     }
 
@@ -231,7 +230,7 @@ fn run_make_command(kata_name: String, path: String) -> Option<std::process::Chi
         Command::new("make")
             .arg("run")
             .arg("-s")
-            .current_dir(path)
+            .current_dir(path_str)
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::inherit())
             .spawn()
@@ -239,24 +238,23 @@ fn run_make_command(kata_name: String, path: String) -> Option<std::process::Chi
     )
 }
 
-fn run_os_command(kata_name: String, curday_kata_path: String) -> Option<std::process::Child> {
-    info!(
-        "Running {}, in {}",
-        kata_name,
-        curday_path_short(curday_kata_path.clone()),
-    );
+fn run_os_command(run_path: PathBuf) -> Option<std::process::Child> {
+    let run_path_str = run_path
+        .to_str()
+        .expect("failed to convert path to string")
+        .to_string();
 
     if cfg!(target_os = "windows") {
-        let bat_file_path = format!("{}/run.bat", curday_kata_path);
-        if !std::path::Path::new(&bat_file_path).exists() {
-            println!("No run.bat file found in {}", curday_kata_path);
+        let bat_file = run_path.join("run.bat");
+        if !bat_file.exists() {
+            println!("No run.bat file found in {}", run_path_str);
             return None;
         }
 
         return Some(
             Command::new("cmd")
                 .arg("/C")
-                .arg(format!("cd {} && run.bat", curday_kata_path))
+                .arg(format!("cd {} && run.bat", run_path_str))
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit())
                 .spawn()
@@ -264,16 +262,16 @@ fn run_os_command(kata_name: String, curday_kata_path: String) -> Option<std::pr
         );
     }
 
-    let sh_file_path = format!("{}/run.sh", curday_kata_path);
-    if !std::path::Path::new(&sh_file_path).exists() {
-        println!("No run.sh file found in {}", curday_kata_path);
+    let sh_file = run_path.join("run.sh");
+    if !sh_file.exists() {
+        println!("No run.sh file found in {}", run_path_str);
         return None;
     }
 
     return Some(
         Command::new("sh")
             .arg("-c")
-            .arg(format!("cd {} && ./run.sh", curday_kata_path))
+            .arg(format!("cd {} && ./run.sh", run_path_str))
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::inherit())
             .spawn()
@@ -399,21 +397,8 @@ fn nextday_path(days_dir: &str) -> String {
     format!("{}/day{}", days_dir, curday(days_dir) + 1)
 }
 
-fn curday_path_short(path: String) -> String {
-    return path
-        .split('/')
-        .collect::<Vec<&str>>()
-        .iter()
-        .rev()
-        .take(3)
-        .rev()
-        .map(|e| e.to_string())
-        .collect::<Vec<String>>()
-        .join("/");
-}
-
-fn curday_kata_path(days_dir: &String, kata_name: &String) -> String {
-    format!("{}/{}", curday_path(days_dir), kata_name)
+fn curday_kata_path(days_dir: &String, kata_name: &String) -> PathBuf {
+    PathBuf::from(format!("{}/{}", curday_path(days_dir), kata_name))
 }
 
 fn read_config_file(config_file_name: String) -> Data {

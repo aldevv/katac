@@ -209,12 +209,12 @@ fn test_run_all() -> TestResult {
 
 #[test]
 fn test_new_command() -> TestResult {
-    let new_kata_folder = "tests/example_katas/foo2";
+    let new_kata_folder = "tests/new_katas";
     Command::cargo_bin(PRG)?
         .args(["new", "foo2"])
-        .env("KATAS_DIR", "tests/example_katas")
+        .env("KATAS_DIR", new_kata_folder)
         .assert()
-        .stdout("foo2 created in tests/example_katas.\n");
+        .stdout("foo2 created in tests/new_katas.\n");
     cleanup(new_kata_folder);
     Ok(())
 }
