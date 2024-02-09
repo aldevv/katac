@@ -8,6 +8,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+mod repos;
+
 const KATAS_DIR: &str = "katas";
 const DAYS_DIR: &str = "days";
 const CONFIG_FILE_NAME: &str = "katac.toml";
@@ -64,6 +66,9 @@ pub enum Subcommands {
         #[arg(required = true, num_args = 1..)]
         kata_name: String,
     },
+
+    /// copy katas from the katac-repos repository
+    Repos {},
 }
 
 #[derive(Deserialize, Debug)]
@@ -433,4 +438,8 @@ fn read_random_katas_from_config_file(config_file: String) -> Vec<String> {
         std::process::exit(1);
     }
     kata_names
+}
+
+pub fn clone_repos() {
+    repos::clone_repo();
 }

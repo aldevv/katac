@@ -1,6 +1,6 @@
 use katac::{
-    copy_katas, new_kata, random_katas, run_katas, Args, Subcommands::New, Subcommands::Random,
-    Subcommands::Run,
+    clone_repos, copy_katas, new_kata, random_katas, run_katas, Args, Subcommands::New,
+    Subcommands::Random, Subcommands::Repos, Subcommands::Run,
 };
 
 use clap::Parser;
@@ -18,6 +18,7 @@ fn main() {
             } => run_katas(&args, kata_names.clone(), command.clone()),
             Random { number_of_katas } => copy_katas(&args, &random_katas(&args, *number_of_katas)),
             New { kata_name } => new_kata(&args, kata_name.to_string()),
+            Repos {} => clone_repos(),
         },
     }
 }
