@@ -1,5 +1,5 @@
 use katac::{
-    clone_repos, copy_katas, new_kata, random_katas, run_katas, Args, Subcommands::New,
+    clone_repo, copy_katas, new_kata, random_katas, run_katas, Args, Subcommands::New,
     Subcommands::Random, Subcommands::Repos, Subcommands::Run,
 };
 
@@ -18,7 +18,7 @@ fn main() {
             } => run_katas(&args, kata_names.clone(), command.clone()),
             Random { number_of_katas } => copy_katas(&args, &random_katas(&args, *number_of_katas)),
             New { kata_name } => new_kata(&args, kata_name.to_string()),
-            Repos { repo_url, list } => clone_repo(repo_url.clone()),
+            Repos { repo_url, list: _ } => clone_repo(repo_url.clone()),
         },
     }
 }

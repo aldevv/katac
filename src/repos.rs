@@ -6,18 +6,17 @@ use log::info;
 
 const DEFAULT_REPO: &str = "https://github.com/aldevv/katac-repos";
 
-fn username_as_repo_name(repo_url: &str) -> String {
-    let mut user: String = "".to_string();
+fn username_as_repo_name(repo_url: &str) -> Option<String> {
     if repo_url.starts_with("git@") {
         let rest = repo_url.split(':').collect::<Vec<&str>>()[1].to_string();
-        return rest.split('/').collect::<Vec<&str>>()[0].to_string();
+        return Some(rest.split('/').collect::<Vec<&str>>()[0].to_string());
     }
 
     if repo_url.starts_with("https://") || repo_url.starts_with("http://") {
         let rest = repo_url.split('/').collect::<Vec<&str>>()[3].to_string();
-        return rest.split('/').collect::<Vec<&str>>()[0].to_string();
+        return Some(rest.split('/').collect::<Vec<&str>>()[0].to_string());
     }
-    user
+    None
 }
 
 pub fn clone_repo(repo_url: Option<String>) {
@@ -31,12 +30,14 @@ pub fn clone_repo(repo_url: Option<String>) {
         std::fs::create_dir_all(&dst).unwrap();
     }
 
-    let mut url: String;
-    match repo_url {
-        Some(u) => url = u,
-        None => url = DEFAULT_REPO.to_string(),
-    }
-    dst.push_str(format!("/{}", username_as_repo_name(&url)).as_str());
+    let url = repo_url.unwrap_or(DEFAULT_REPO.to_string());
+    dst.push_str(
+        format!(
+            "/{}",
+            username_as_repo_name(&url).unwrap_or("unknown".to_string())
+        )
+        .as_str(),
+    );
 
     let output = std::process::Command::new("git")
         .args(["clone", &url, &dst])
