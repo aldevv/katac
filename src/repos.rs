@@ -20,7 +20,7 @@ fn username_as_repo_name(repo_url: &str) -> String {
     user
 }
 
-pub fn clone_repo() {
+pub fn clone_repo(repo_url: Option<String>) {
     let mut dst = if consts::OS == "windows" {
         std::env::var("USERPROFILE").unwrap() + "katac-repos" // TODO: check this dst
     } else {
@@ -31,9 +31,12 @@ pub fn clone_repo() {
         std::fs::create_dir_all(&dst).unwrap();
     }
 
-    // TODO: add logic for when user adds a custom repo
-    let url = DEFAULT_REPO;
-    dst.push_str(format!("/{}", username_as_repo_name(url)).as_str());
+    let mut url: String;
+    match repo_url {
+        Some(u) => url = u,
+        None => url = DEFAULT_REPO.to_string(),
+    }
+    dst.push_str(format!("/{}", username_as_repo_name(&url)).as_str());
 
     let output = std::process::Command::new("git")
         .args(["clone", &url, &dst])

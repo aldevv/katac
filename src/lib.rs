@@ -68,7 +68,15 @@ pub enum Subcommands {
     },
 
     /// copy katas from the katac-repos repository
-    Repos {},
+    Repos {
+        /// URL of the repository
+        #[arg(required = false)]
+        repo_url: Option<String>,
+
+        /// list all available repositories
+        #[arg(short, long)]
+        list: bool,
+    },
 }
 
 #[derive(Deserialize, Debug)]
@@ -440,6 +448,6 @@ fn read_random_katas_from_config_file(config_file: String) -> Vec<String> {
     kata_names
 }
 
-pub fn clone_repos() {
-    repos::clone_repo();
+pub fn clone_repo(repo_url: Option<String>) {
+    repos::clone_repo(repo_url);
 }

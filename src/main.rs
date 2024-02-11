@@ -18,7 +18,7 @@ fn main() {
             } => run_katas(&args, kata_names.clone(), command.clone()),
             Random { number_of_katas } => copy_katas(&args, &random_katas(&args, *number_of_katas)),
             New { kata_name } => new_kata(&args, kata_name.to_string()),
-            Repos {} => clone_repos(),
+            Repos { repo_url, list } => clone_repo(repo_url.clone()),
         },
     }
 }
