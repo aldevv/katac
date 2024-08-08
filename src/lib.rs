@@ -1,10 +1,11 @@
 pub mod args;
 pub mod config;
+pub mod config_file;
 pub mod state_file;
 
 use crate::config::Config;
-use crate::state_file::read_random_katas_from_config_file;
 use args::Args;
+use config::merge_local_and_state_katas;
 use fs_extra::dir::CopyOptions;
 use inquire::{InquireError, MultiSelect};
 use log::info;
@@ -25,14 +26,26 @@ pub struct Kata {
 
 pub struct Katac {
     pub cfg: Config,
+    // all katas in the katas_dir and the state file
     pub katas: Vec<Kata>,
+    // katas in katas_dir
+    pub local_katas: Vec<Kata>,
+    // katas already saved in the state file
+    pub state_katas: Vec<Kata>,
 }
 
 impl Katac {
     pub fn new(args: &Args) -> Self {
         let cfg = Config::new(args);
-        let katas = cfg.katas();
-        Self { cfg, katas }
+        let local_katas = cfg.local_katas();
+        let state_katas = cfg.state_katas();
+        let katas = merge_local_and_state_katas(local_katas.clone(), state_katas.clone());
+        Self {
+            cfg,
+            local_katas,
+            state_katas,
+            katas,
+        }
     }
 
     pub fn choose(&self) -> Vec<String> {
@@ -59,6 +72,12 @@ impl Katac {
     }
 
     pub fn save_and_copy_prompt(&mut self) {
+        if self.cfg.args.kata_names_args.is_some() {
+            let kata_names = self.cfg.args.kata_names_args.clone().unwrap();
+            self.copy_katas(&kata_names);
+            return;
+        }
+
         let chosen: Vec<String> = self.choose();
 
         if chosen.is_empty() {
@@ -135,23 +154,23 @@ impl Katac {
         }
     }
 
-    pub fn random_katas(&self, number_of_katas: u8) -> Vec<String> {
-        let mut kata_names: Vec<String>;
-        if std::path::Path::new(&self.cfg.config_file_path).exists() {
-            kata_names = read_random_katas_from_config_file(&self.cfg.config_file_path);
-            if number_of_katas > kata_names.len() as u8 {
-                println!(
-                    "random number is higher than the number of katas found in the katas.toml file"
-                );
-                std::process::exit(1);
-            }
+    /// returns a vector of random katas from the katas.toml file or the katas folder
+    pub fn random_katas(&self, num_katas_wanted: u8) -> Vec<String> {
+        let random_katas = if self.cfg.config_file.random.is_some() {
+            self.cfg.config_file.get_random_katas_from_config()
         } else {
-            info!("no katas.toml found, reading katas folder for random katas");
-            // kata_names becomes all files inside the katas folder
-            kata_names = self.katas.iter().map(|k| k.name.clone()).collect();
-            kata_names.shuffle(&mut thread_rng())
+            info!("no katac_config.toml found, reading katas folder for random katas");
+            let mut local_katas: Vec<String> =
+                self.local_katas.iter().map(|k| k.name.clone()).collect();
+            local_katas.shuffle(&mut thread_rng());
+            local_katas
+        };
+
+        if num_katas_wanted > random_katas.len() as u8 {
+            println!("random katas wanted number is higher than the number of katas found");
+            std::process::exit(1);
         }
-        kata_names[0..number_of_katas as usize].to_vec()
+        random_katas[0..num_katas_wanted as usize].to_vec()
     }
     /// creates a new kata in the kata_dir folder or the given path
     pub fn new_kata(&self, kata_name: String) {
@@ -163,19 +182,21 @@ impl Katac {
         fs::create_dir_all(&kata_path).expect("failed to create the kata folder");
         println!("{} created in {}.", kata_name, dirname(&kata_path));
 
-        if USE_MAKEFILE
-            && Command::new("make")
-                .arg("--version")
-                .stdout(std::process::Stdio::null())
-                .status()
-                .is_ok()
-        {
+        if USE_MAKEFILE && make_is_installed() {
             create_makefile(kata_path);
             return;
         }
 
         create_os_run_file(kata_path);
     }
+}
+
+fn make_is_installed() -> bool {
+    Command::new("make")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .status()
+        .is_ok()
 }
 
 /// returns the basename of a path
@@ -279,9 +300,6 @@ fn run_os_command(run_path: PathBuf) -> Option<std::process::Child> {
             .expect("failed to run the kata"),
     );
 }
-
-/// returns a vector of random katas from the katas.toml file or the katas folder
-// TODO: fix random katas
 
 /// creates a new Makefile in the given path
 fn create_makefile(mut path: PathBuf) {

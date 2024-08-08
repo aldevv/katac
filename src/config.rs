@@ -1,4 +1,5 @@
 use crate::args::Args;
+use crate::config_file::ConfigFile;
 use crate::state_file::StateFile;
 use crate::Kata;
 use std::fs;
@@ -6,27 +7,39 @@ use std::path::PathBuf;
 
 pub const DEF_KATAS_DIR: &str = "katas";
 pub const DEF_DAYS_DIR: &str = "days";
-pub const DEF_CONFIG_FILE_NAME: &str = "katac.toml";
+pub const DEF_STATE_FILE_NAME: &str = "katac_state.toml";
+pub const DEF_CONFIG_FILE_NAME: &str = "katac_config.toml";
 
 pub struct Config {
+    pub args: Args,
     pub katas_dir: String,
     pub days_dir: String,
+    pub state_file_path: PathBuf,
+    pub state_file: StateFile,
     pub config_file_path: PathBuf,
-    pub config_file: StateFile,
+    pub config_file: ConfigFile,
 }
 
 impl Config {
     pub fn new(args: &Args) -> Self {
         let katas_dir = Config::katas_dir(args);
         let days_dir = Config::days_dir(args);
+
         let config_file_path = PathBuf::from(
             args.config_file
                 .clone()
                 .unwrap_or_else(|| DEF_CONFIG_FILE_NAME.to_string()),
         );
+        let state_file_path = state_file_path();
+        let state_file = StateFile::new(&state_file_path).unwrap_or_default();
 
-        let config_file = StateFile::new(&config_file_path).unwrap_or_default();
+        if !state_file_path.exists() {
+            state_file
+                .update(&state_file_path)
+                .expect("Unable to update config file");
+        }
 
+        let config_file = ConfigFile::new(&config_file_path).unwrap_or_default();
         if !config_file_path.exists() {
             config_file
                 .update(&config_file_path)
@@ -34,33 +47,36 @@ impl Config {
         }
 
         Self {
+            args: args.clone(),
             katas_dir,
             days_dir,
+            state_file_path,
+            state_file,
             config_file_path,
             config_file,
         }
     }
 
     pub fn save(&mut self, kata_name: &str) {
-        let mut katas = self.config_file.katas.clone().unwrap_or_default();
+        let mut katas = self.state_file.katas.clone().unwrap_or_default();
         katas.push(Kata {
             name: kata_name.to_string(),
             path: self.kata_absolute_path(kata_name),
         });
 
-        let new_config_file = StateFile {
+        let new_state_file = StateFile {
             katas: Some(katas),
-            ..self.config_file.clone()
+            ..self.state_file.clone()
         };
 
-        new_config_file
-            .update(&self.config_file_path)
+        new_state_file
+            .update(&self.state_file_path)
             .expect("Unable to update config file");
-        self.config_file = new_config_file;
+        self.state_file = new_state_file;
     }
 
     pub fn is_saved(&self, kata: &str) -> bool {
-        self.config_file
+        self.state_file
             .katas
             .clone()
             .unwrap_or_default()
@@ -68,10 +84,8 @@ impl Config {
             .any(|k| k.name == kata)
     }
 
-    /// returns a vector of katas from the katas folder and the config file
-    pub fn katas(&self) -> Vec<Kata> {
-        // read the katas_dir folder
-        let local_katas: Vec<Kata> = fs::read_dir(self.katas_dir.clone())
+    pub fn local_katas(&self) -> Vec<Kata> {
+        fs::read_dir(self.katas_dir.clone())
             .expect("Unable to read katas folder")
             .filter_map(|e| e.ok())
             .filter_map(|e| e.file_name().into_string().ok())
@@ -79,11 +93,11 @@ impl Config {
                 name: e.clone(),
                 path: self.local_kata_path(&e),
             })
-            .collect();
+            .collect()
+    }
 
-        // read the katas from the config file
-        let config_katas: Vec<Kata> = self
-            .config_file
+    pub fn state_katas(&self) -> Vec<Kata> {
+        self.state_file
             .katas
             .clone()
             .unwrap_or_default()
@@ -92,16 +106,7 @@ impl Config {
                 name: k.name.clone(),
                 path: k.path.clone(),
             })
-            .collect();
-
-        // merge the two vectors
-        let mut katas: Vec<Kata> = local_katas.clone();
-        for kata in config_katas {
-            if !local_katas.iter().any(|k| k.name == kata.name) {
-                katas.push(kata);
-            }
-        }
-        katas
+            .collect()
     }
 
     /// priorities are:
@@ -176,4 +181,26 @@ impl Config {
     pub fn kata_absolute_path(&self, kata_name: &str) -> PathBuf {
         self.local_kata_path(kata_name).canonicalize().unwrap()
     }
+}
+
+pub fn state_file_path() -> PathBuf {
+    let path = if cfg!(windows) {
+        std::env::var("USERPROFILE").unwrap() + "/katac" // TODO: check this dst
+    } else {
+        std::env::var("HOME").unwrap() + "/.local/share/katac"
+    };
+
+    PathBuf::from(path + "/" + DEF_STATE_FILE_NAME)
+}
+
+/// returns a vector of katas from the katas folder and the config file
+pub fn merge_local_and_state_katas(local_katas: Vec<Kata>, state_katas: Vec<Kata>) -> Vec<Kata> {
+    // merge the two vectors
+    let mut katas: Vec<Kata> = local_katas.clone();
+    for kata in state_katas.iter() {
+        if !local_katas.iter().any(|k| k.name == kata.name) {
+            katas.push(kata.clone());
+        }
+    }
+    katas
 }

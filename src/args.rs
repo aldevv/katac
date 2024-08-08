@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-#[derive(Parser, Debug)]
+#[derive(Clone, Parser, Debug)]
 #[command(author, version, about, long_about = None, /* arg_required_else_help(true) */)]
 /// Katac is a tool to help you do katas everyday
 pub struct Args {
@@ -18,13 +18,13 @@ pub struct Args {
 
     /// Katas you want to do today
     #[arg(required = false, num_args=1..)]
-    pub kata_names: Option<Vec<String>>,
+    pub kata_names_args: Option<Vec<String>>,
 
     #[command(subcommand)]
     pub subcommand: Option<Subcommands>,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Clone, Subcommand, Debug)]
 pub enum Subcommands {
     /// Katas you want to run today (requires a makefile with the  'run' target in the kata's root folder)
     Run {
