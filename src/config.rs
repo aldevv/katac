@@ -14,10 +14,10 @@ pub struct Config {
     pub args: Args,
     pub katas_dir: String,
     pub days_dir: String,
-    pub state_file_path: PathBuf,
     pub state_file: StateFile,
-    pub config_file_path: PathBuf,
     pub config_file: ConfigFile,
+    pub state_file_path: PathBuf,
+    pub config_file_path: PathBuf,
 }
 
 impl Config {
@@ -25,20 +25,7 @@ impl Config {
         let katas_dir = Config::katas_dir(args);
         let days_dir = Config::days_dir(args);
 
-        let config_file_path = PathBuf::from(
-            args.config_file
-                .clone()
-                .unwrap_or_else(|| DEF_CONFIG_FILE_NAME.to_string()),
-        );
-        let state_file_path = state_file_path();
-        let state_file = StateFile::new(&state_file_path).unwrap_or_default();
-
-        if !state_file_path.exists() {
-            state_file
-                .update(&state_file_path)
-                .expect("Unable to update config file");
-        }
-
+        let config_file_path = config_file_path(args);
         let config_file = ConfigFile::new(&config_file_path).unwrap_or_default();
         if !config_file_path.exists() {
             config_file
@@ -46,17 +33,26 @@ impl Config {
                 .expect("Unable to update config file");
         }
 
+        let state_file_path = state_file_path();
+        let state_file = StateFile::new(&state_file_path).unwrap_or_default();
+        if !state_file_path.exists() {
+            state_file
+                .update(&state_file_path)
+                .expect("Unable to update config file");
+        }
+
         Self {
             args: args.clone(),
             katas_dir,
             days_dir,
-            state_file_path,
             state_file,
+            state_file_path,
             config_file_path,
             config_file,
         }
     }
 
+    // save in state file
     pub fn save(&mut self, kata_name: &str) {
         let mut katas = self.state_file.katas.clone().unwrap_or_default();
         katas.push(Kata {
@@ -75,6 +71,7 @@ impl Config {
         self.state_file = new_state_file;
     }
 
+    // is saved in state
     pub fn is_saved(&self, kata: &str) -> bool {
         self.state_file
             .katas
@@ -96,7 +93,7 @@ impl Config {
             .collect()
     }
 
-    pub fn state_katas(&self) -> Vec<Kata> {
+    pub fn global_katas(&self) -> Vec<Kata> {
         self.state_file
             .katas
             .clone()
@@ -182,6 +179,13 @@ impl Config {
         self.local_kata_path(kata_name).canonicalize().unwrap()
     }
 }
+pub fn config_file_path(args: &Args) -> PathBuf {
+    PathBuf::from(
+        args.config_file
+            .clone()
+            .unwrap_or_else(|| DEF_CONFIG_FILE_NAME.to_string()),
+    )
+}
 
 pub fn state_file_path() -> PathBuf {
     let path = if cfg!(windows) {
@@ -194,7 +198,7 @@ pub fn state_file_path() -> PathBuf {
 }
 
 /// returns a vector of katas from the katas folder and the config file
-pub fn merge_local_and_state_katas(local_katas: Vec<Kata>, state_katas: Vec<Kata>) -> Vec<Kata> {
+pub fn merge_local_and_global_katas(local_katas: Vec<Kata>, state_katas: Vec<Kata>) -> Vec<Kata> {
     // merge the two vectors
     let mut katas: Vec<Kata> = local_katas.clone();
     for kata in state_katas.iter() {

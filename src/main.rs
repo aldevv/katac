@@ -1,7 +1,7 @@
 use std::process;
 
 use katac::{
-    args::{Args, Subcommands::New, Subcommands::Random, Subcommands::Run},
+    args::{Args, Subcommands::Create, Subcommands::Random, Subcommands::Run},
     Katac,
 };
 
@@ -17,15 +17,14 @@ fn main() {
     let mut katac = Katac::new(&args);
 
     match args.subcommand {
-        None => katac.save_and_copy_prompt(),
+        None => katac.select(),
         Some(ref subcommand) => match subcommand {
             Run {
                 kata_names,
                 command,
-            } => katac.run_katas(kata_names.clone(), command.clone()),
-            // TODO: fix random
-            Random { number_of_katas } => katac.copy_katas(&katac.random_katas(*number_of_katas)),
-            New { kata_name } => katac.new_kata(kata_name.to_string()),
+            } => katac.run(kata_names.clone(), command.clone()),
+            Create { kata_name } => katac.create(kata_name.to_string()),
+            Random { number_of_katas } => katac.random_katas(*number_of_katas),
         },
     }
 }

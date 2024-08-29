@@ -45,7 +45,7 @@ pub enum Subcommands {
     },
 
     /// Create a new kata
-    New {
+    Create {
         /// Name of the kata you want to create
         #[arg(required = true, num_args = 1..)]
         kata_name: String,

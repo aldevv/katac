@@ -1,9 +1,11 @@
-// keeps track of all katas added
 use std::{fs, path::PathBuf};
 
 use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
+
+// default location
+//.../katac/katac_config.toml
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct ConfigFile {

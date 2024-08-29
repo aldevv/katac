@@ -5,7 +5,7 @@ pub mod state_file;
 
 use crate::config::Config;
 use args::Args;
-use config::merge_local_and_state_katas;
+use config::merge_local_and_global_katas;
 use fs_extra::dir::CopyOptions;
 use inquire::{InquireError, MultiSelect};
 use log::info;
@@ -22,34 +22,44 @@ const USE_MAKEFILE: bool = true;
 pub struct Kata {
     pub name: String,
     pub path: PathBuf,
+    // TODO: add workplace field so that new folders are clean, katac repos (shows list, then
+    // copies, add an option to clean state file for a workplace, workplace NEEDS to be added
+    // manually, katac add workspace <name> <path> to add a new workplace)
+    // this way even if I'm in the wrong folder it will always copy to the correct place,
+    // katac practice is organized, having more than one workplace is weird so having it as
+    // a command that is manual is good, do a katac init to create a new workspace? sounds good
+    // have a global state for workspaces, and the one currently selected (how about a .katac
+    // folder?, is cool because it will be local to the project, and we won't need to worry about
+    // being in the wrong folder (just look for parents until you find a .katac folder)
+    // pub workplace: Vec<String>, // maybe not needed if we use a .katac folder in the project root
 }
 
 pub struct Katac {
     pub cfg: Config,
     // all katas in the katas_dir and the state file
-    pub katas: Vec<Kata>,
+    pub all_katas: Vec<Kata>,
     // katas in katas_dir
     pub local_katas: Vec<Kata>,
     // katas already saved in the state file
-    pub state_katas: Vec<Kata>,
+    pub global_katas: Vec<Kata>,
 }
 
 impl Katac {
     pub fn new(args: &Args) -> Self {
         let cfg = Config::new(args);
         let local_katas = cfg.local_katas();
-        let state_katas = cfg.state_katas();
-        let katas = merge_local_and_state_katas(local_katas.clone(), state_katas.clone());
+        let global_katas = cfg.global_katas();
+        let all_katas = merge_local_and_global_katas(local_katas.clone(), global_katas.clone());
         Self {
             cfg,
             local_katas,
-            state_katas,
-            katas,
+            global_katas,
+            all_katas,
         }
     }
 
-    pub fn choose(&self) -> Vec<String> {
-        let options: Vec<&str> = self.katas.iter().map(|k| k.name.as_str()).collect();
+    pub fn open_prompt(&self) -> Vec<String> {
+        let options: Vec<&str> = self.all_katas.iter().map(|k| k.name.as_str()).collect();
         MultiSelect::new("Choose the katas you want:", options)
             .prompt()
             .unwrap_or_else(|err| match err {
@@ -71,40 +81,35 @@ impl Katac {
             .collect()
     }
 
-    pub fn save_and_copy_prompt(&mut self) {
+    pub fn select(&mut self) {
         if self.cfg.args.kata_names_args.is_some() {
             let kata_names = self.cfg.args.kata_names_args.clone().unwrap();
             self.copy_katas(&kata_names);
             return;
         }
 
-        let chosen: Vec<String> = self.choose();
+        let chosen_katas: Vec<String> = self.open_prompt();
 
-        if chosen.is_empty() {
+        if chosen_katas.is_empty() {
             println!("No katas selected, use the SPACE key to select katas");
             std::process::exit(1);
         }
 
-        for a in chosen.clone().into_iter() {
-            if !self.cfg.local_kata_path(&a).exists() {
+        for kata in chosen_katas.clone().into_iter() {
+            if !self.cfg.local_kata_path(&kata).exists() {
                 println!(
                     "Kata {} not found in {}",
-                    a,
-                    self.cfg.local_kata_path(&a).display()
+                    kata,
+                    self.cfg.local_kata_path(&kata).display()
                 );
                 std::process::exit(1);
             }
-
-            if !self.cfg.is_saved(&a) {
-                self.cfg.save(&a)
-            }
         }
-
-        self.copy_katas(&chosen);
+        self.copy_katas(&chosen_katas);
     }
 
     pub fn kata_path(&self, kata_name: &str) -> PathBuf {
-        self.katas
+        self.all_katas
             .iter()
             .find(|k| k.name == kata_name)
             .unwrap()
@@ -113,7 +118,7 @@ impl Katac {
     }
 
     /// copies katas from the katas_dir to a new day in days_dir
-    pub fn copy_katas(&self, kata_names: &Vec<String>) {
+    pub fn copy_katas(&mut self, kata_names: &Vec<String>) {
         let dst = self.cfg.nextday_path();
         info!(
             "Copying {} to {}",
@@ -133,11 +138,15 @@ impl Katac {
                 Ok(_) => println!("Copying {} to {}...", kata_name, basename(&dst)),
                 Err(e) => println!("Error: {}", e),
             }
+
+            if !self.cfg.is_saved(kata_name) {
+                self.cfg.save(kata_name);
+            }
         }
     }
 
     /// runs the katas in the current day
-    pub fn run_katas(&self, kata_names: Option<Vec<String>>, command: Option<String>) {
+    pub fn run(&self, kata_names: Option<Vec<String>>, command: Option<String>) {
         let kata_names = kata_names.unwrap_or_else(|| self.cfg.curday_katas());
 
         for (i, kata_name) in kata_names.iter().enumerate() {
@@ -155,7 +164,7 @@ impl Katac {
     }
 
     /// returns a vector of random katas from the katas.toml file or the katas folder
-    pub fn random_katas(&self, num_katas_wanted: u8) -> Vec<String> {
+    pub fn get_random_katas(&self, num_katas_wanted: u8) -> Vec<String> {
         let random_katas = if self.cfg.config_file.random.is_some() {
             self.cfg.config_file.get_random_katas_from_config()
         } else {
@@ -173,7 +182,7 @@ impl Katac {
         random_katas[0..num_katas_wanted as usize].to_vec()
     }
     /// creates a new kata in the kata_dir folder or the given path
-    pub fn new_kata(&self, kata_name: String) {
+    pub fn create(&self, kata_name: String) {
         let kata_path = self.cfg.local_kata_path(&kata_name);
         if kata_path.exists() {
             println!("Kata {} already exists", kata_name);
@@ -188,6 +197,10 @@ impl Katac {
         }
 
         create_os_run_file(kata_path);
+    }
+
+    pub fn random_katas(&mut self, num_katas_wanted: u8) {
+        self.copy_katas(&self.get_random_katas(num_katas_wanted));
     }
 }
 
