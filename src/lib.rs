@@ -1,22 +1,22 @@
 pub mod args;
+pub mod commands;
 pub mod config;
-pub mod config_file;
-pub mod state_file;
+pub mod files;
 
-use crate::config::Config;
 use args::Args;
-use config::merge_local_and_global_katas;
+use config::{merge_local_and_global_katas, Config};
 use fs_extra::dir::CopyOptions;
 use inquire::{InquireError, MultiSelect};
 use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const USE_MAKEFILE: bool = true;
+use crate::commands::{
+    create_makefile, create_os_run_file, run_custom_command, run_using_makefile, USE_MAKEFILE,
+};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Kata {
@@ -139,8 +139,8 @@ impl Katac {
                 Err(e) => println!("Error: {}", e),
             }
 
-            if !self.cfg.is_saved(kata_name) {
-                self.cfg.save(kata_name);
+            if !self.cfg.is_saved_in_globals(kata_name) {
+                self.cfg.save_in_globals(kata_name);
             }
         }
     }
@@ -165,8 +165,8 @@ impl Katac {
 
     /// returns a vector of random katas from the katas.toml file or the katas folder
     pub fn get_random_katas(&self, num_katas_wanted: u8) -> Vec<String> {
-        let random_katas = if self.cfg.config_file.random.is_some() {
-            self.cfg.config_file.get_random_katas_from_config()
+        let random_katas = if self.cfg.local_config_file.random.is_some() {
+            self.cfg.local_config_file.get_random_katas_from_config()
         } else {
             info!("no katac_config.toml found, reading katas folder for random katas");
             let mut local_katas: Vec<String> =
@@ -220,132 +220,4 @@ fn basename(path: &Path) -> String {
 /// returns the dirname of a path
 fn dirname(path: &Path) -> String {
     path.parent().unwrap().to_str().unwrap().to_string()
-}
-
-fn run_custom_command(command: &str, kata_path: PathBuf) -> Option<std::process::Child> {
-    let mut command = command.split_whitespace();
-    Some(
-        Command::new(command.next().unwrap())
-            .args(command)
-            .current_dir(kata_path)
-            .spawn()
-            .expect("failed to run the kata"),
-    )
-}
-
-/// runs the kata in the given path
-fn run_using_makefile(curday_kata_path: PathBuf) -> Option<std::process::Child> {
-    if USE_MAKEFILE
-        && Command::new("make")
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .status()
-            .is_ok()
-    {
-        return run_make_command(curday_kata_path);
-    }
-    run_os_command(curday_kata_path)
-}
-
-/// runs the kata in the given path using the make command
-fn run_make_command(mut path: PathBuf) -> Option<std::process::Child> {
-    let path_str = path
-        .to_str()
-        .expect("failed to convert path to string")
-        .to_string();
-
-    path.push("Makefile");
-    if !path.exists() {
-        println!("No Makefile found in {}", path_str);
-        return None;
-    }
-
-    Some(
-        Command::new("make")
-            .arg("run")
-            .arg("-s")
-            .current_dir(path_str)
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit())
-            .spawn()
-            .expect("failed to run the kata"),
-    )
-}
-
-/// runs the kata in the given path using an OS specific file (run.sh or run.bat)
-fn run_os_command(run_path: PathBuf) -> Option<std::process::Child> {
-    let run_path_str = run_path
-        .to_str()
-        .expect("failed to convert path to string")
-        .to_string();
-
-    if cfg!(target_os = "windows") {
-        let bat_file = run_path.join("run.bat");
-        if !bat_file.exists() {
-            println!("No run.bat file found in {}", run_path_str);
-            return None;
-        }
-
-        return Some(
-            Command::new("cmd")
-                .arg("/C")
-                .arg(format!("cd {} && run.bat", run_path_str))
-                .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit())
-                .spawn()
-                .expect("failed to run the kata"),
-        );
-    }
-
-    let sh_file = run_path.join("run.sh");
-    if !sh_file.exists() {
-        println!("No run.sh file found in {}", run_path_str);
-        return None;
-    }
-
-    return Some(
-        Command::new("sh")
-            .arg("-c")
-            .arg(format!("cd {} && ./run.sh", run_path_str))
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit())
-            .spawn()
-            .expect("failed to run the kata"),
-    );
-}
-
-/// creates a new Makefile in the given path
-fn create_makefile(mut path: PathBuf) {
-    let content = "run:\n\t@echo \"TODO: add your run command here\"";
-    path.push("Makefile");
-    let mut f = fs::File::create(path).expect("failed to create the Makefile");
-    f.write_all(content.as_bytes())
-        .expect("failed to write to the Makefile");
-}
-
-/// creates a new run.sh or run.bat file in the given path
-fn create_os_run_file(mut kata_path: PathBuf) {
-    if cfg!(target_os = "windows") {
-        let content = "TODO: add your run command here";
-        kata_path.push("run.bat");
-        let mut f =
-            std::fs::File::create(kata_path).expect("failed to create the windows run file");
-        f.write_all(content.as_bytes())
-            .expect("failed to write to the windows run.bat file");
-        return;
-    }
-
-    let content = "#!/usr/bin/env bash\n\n# TODO: replace this line with  your run command (example: npm run test)";
-    kata_path.push("run.sh");
-    let mut f = std::fs::File::create(&kata_path).expect("failed to create the linux run file");
-
-    f.write_all(content.as_bytes())
-        .expect("failed to write to the linux run.sh file");
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::prelude::PermissionsExt;
-        std::fs::set_permissions(kata_path, fs::Permissions::from_mode(0o755))
-            .expect("failed to set permissions on the linux run file");
-    }
 }

@@ -5,33 +5,33 @@ use rand::{self, seq::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
 
 // default location
-//.../katac/katac_config.toml
+// ./katac.json
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
-pub struct ConfigFile {
+pub struct LocalConfigFile {
     pub random: Option<Vec<String>>,
 }
 
-impl ConfigFile {
-    pub fn new(config_file_name: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+impl LocalConfigFile {
+    pub fn new(filename: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         info!("Reading katac_config.toml file");
 
-        if let Some(path) = config_file_name.parent() {
+        if let Some(path) = filename.parent() {
             if !path.exists() {
                 Err(format!("{} does not exist", path.display()))?;
             }
         }
 
-        let str = fs::read_to_string(config_file_name)?;
-        Ok(toml::from_str(&str)?)
+        let str = fs::read_to_string(filename)?;
+        Ok(serde_json::from_str(&str)?)
     }
 
-    pub fn update(&self, config_file_name: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-        let toml = toml::to_string(&self)?;
-        Ok(fs::write(config_file_name, toml)?)
+    pub fn update(&self, filename: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+        let json = serde_json::to_string(&self)?;
+        Ok(fs::write(filename, json)?)
     }
 
-    /// reads the katas.toml file and returns a vector of random katas
+    /// reads the katas.json file and returns a vector of random katas
     pub fn get_random_katas_from_config(&self) -> Vec<String> {
         let mut kata_names = self.random.clone().unwrap_or_default();
         if kata_names.is_empty() {

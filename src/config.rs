@@ -1,23 +1,26 @@
 use crate::args::Args;
-use crate::config_file::ConfigFile;
-use crate::state_file::StateFile;
+use crate::files::global_config_file::GlobalConfigFile;
+use crate::files::global_katas_file::GlobalKatasFile;
+use crate::files::local_config_file::LocalConfigFile;
 use crate::Kata;
 use std::fs;
 use std::path::PathBuf;
 
 pub const DEF_KATAS_DIR: &str = "katas";
 pub const DEF_DAYS_DIR: &str = "days";
-pub const DEF_STATE_FILE_NAME: &str = "katac_state.toml";
-pub const DEF_CONFIG_FILE_NAME: &str = "katac_config.toml";
+pub const DEF_GLOBAL_KATAS_FILENAME: &str = "global_katas.json";
+pub const DEF_CONFIG_FILENAME: &str = "katac.json";
 
 pub struct Config {
     pub args: Args,
     pub katas_dir: String,
     pub days_dir: String,
-    pub state_file: StateFile,
-    pub config_file: ConfigFile,
-    pub state_file_path: PathBuf,
-    pub config_file_path: PathBuf,
+    pub global_config_file: GlobalConfigFile,
+    pub global_config_filepath: PathBuf,
+    pub local_config_file: LocalConfigFile,
+    pub local_config_filepath: PathBuf,
+    pub global_katas_file: GlobalKatasFile,
+    pub global_katas_filepath: PathBuf,
 }
 
 impl Config {
@@ -25,19 +28,27 @@ impl Config {
         let katas_dir = Config::katas_dir(args);
         let days_dir = Config::days_dir(args);
 
-        let config_file_path = config_file_path(args);
-        let config_file = ConfigFile::new(&config_file_path).unwrap_or_default();
-        if !config_file_path.exists() {
-            config_file
-                .update(&config_file_path)
+        let local_config_filepath = get_local_config_filepath(args);
+        let local_config_file = LocalConfigFile::new(&local_config_filepath).unwrap_or_default();
+        if !local_config_filepath.exists() {
+            local_config_file
+                .update(&local_config_filepath)
                 .expect("Unable to update config file");
         }
 
-        let state_file_path = state_file_path();
-        let state_file = StateFile::new(&state_file_path).unwrap_or_default();
-        if !state_file_path.exists() {
-            state_file
-                .update(&state_file_path)
+        let global_katas_filepath = get_global_katas_file_path();
+        let global_katas_file = GlobalKatasFile::new(&global_katas_filepath).unwrap_or_default();
+        if !global_katas_filepath.exists() {
+            global_katas_file
+                .update(&global_katas_filepath)
+                .expect("Unable to update config file");
+        }
+
+        let global_config_filepath = get_global_config_filepath();
+        let global_config_file = GlobalConfigFile::new(&global_config_filepath).unwrap_or_default();
+        if !global_config_filepath.exists() {
+            global_config_file
+                .update(&global_config_filepath)
                 .expect("Unable to update config file");
         }
 
@@ -45,35 +56,35 @@ impl Config {
             args: args.clone(),
             katas_dir,
             days_dir,
-            state_file,
-            state_file_path,
-            config_file_path,
-            config_file,
+            global_katas_file,
+            global_katas_filepath,
+            local_config_filepath,
+            local_config_file,
+            global_config_file,
+            global_config_filepath,
         }
     }
 
-    // save in state file
-    pub fn save(&mut self, kata_name: &str) {
-        let mut katas = self.state_file.katas.clone().unwrap_or_default();
+    // TODO: move this to the globals file
+
+    // save in global katas file
+    pub fn save_in_globals(&mut self, kata_name: &str) {
+        let mut katas = self.global_katas_file.katas.clone().unwrap_or_default();
         katas.push(Kata {
             name: kata_name.to_string(),
             path: self.kata_absolute_path(kata_name),
         });
 
-        let new_state_file = StateFile {
-            katas: Some(katas),
-            ..self.state_file.clone()
-        };
-
-        new_state_file
-            .update(&self.state_file_path)
+        let new_global_katas_file = GlobalKatasFile { katas: Some(katas) };
+        new_global_katas_file
+            .update(&self.global_katas_filepath)
             .expect("Unable to update config file");
-        self.state_file = new_state_file;
+        self.global_katas_file = new_global_katas_file;
     }
 
-    // is saved in state
-    pub fn is_saved(&self, kata: &str) -> bool {
-        self.state_file
+    // is saved in global katas file
+    pub fn is_saved_in_globals(&self, kata: &str) -> bool {
+        self.global_katas_file
             .katas
             .clone()
             .unwrap_or_default()
@@ -94,7 +105,7 @@ impl Config {
     }
 
     pub fn global_katas(&self) -> Vec<Kata> {
-        self.state_file
+        self.global_katas_file
             .katas
             .clone()
             .unwrap_or_default()
@@ -179,22 +190,29 @@ impl Config {
         self.local_kata_path(kata_name).canonicalize().unwrap()
     }
 }
-pub fn config_file_path(args: &Args) -> PathBuf {
-    PathBuf::from(
-        args.config_file
-            .clone()
-            .unwrap_or_else(|| DEF_CONFIG_FILE_NAME.to_string()),
-    )
-}
 
-pub fn state_file_path() -> PathBuf {
-    let path = if cfg!(windows) {
+pub fn share_dir() -> String {
+    if cfg!(windows) {
         std::env::var("USERPROFILE").unwrap() + "/katac" // TODO: check this dst
     } else {
         std::env::var("HOME").unwrap() + "/.local/share/katac"
-    };
+    }
+}
 
-    PathBuf::from(path + "/" + DEF_STATE_FILE_NAME)
+pub fn get_local_config_filepath(args: &Args) -> PathBuf {
+    PathBuf::from(
+        args.config_file
+            .clone()
+            .unwrap_or_else(|| DEF_CONFIG_FILENAME.to_string()),
+    )
+}
+
+pub fn get_global_katas_file_path() -> PathBuf {
+    PathBuf::from(share_dir() + "/" + DEF_GLOBAL_KATAS_FILENAME)
+}
+
+pub fn get_global_config_filepath() -> PathBuf {
+    PathBuf::from(share_dir() + DEF_CONFIG_FILENAME)
 }
 
 /// returns a vector of katas from the katas folder and the config file
