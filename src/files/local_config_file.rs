@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct LocalConfigFile {
+    #[serde(skip)]
+    pub filepath: PathBuf,
+
     pub random: Option<Vec<String>>,
 }
 
@@ -23,12 +26,14 @@ impl LocalConfigFile {
         }
 
         let str = fs::read_to_string(filename)?;
-        Ok(serde_json::from_str(&str)?)
+        let mut local_config: LocalConfigFile = serde_json::from_str(&str)?;
+        local_config.filepath = filename.to_path_buf();
+        Ok(local_config)
     }
 
-    pub fn update(&self, filename: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update(&self) -> Result<(), Box<dyn std::error::Error>> {
         let json = serde_json::to_string(&self)?;
-        Ok(fs::write(filename, json)?)
+        Ok(fs::write(self.filepath.clone(), json)?)
     }
 
     /// reads the katas.json file and returns a vector of random katas

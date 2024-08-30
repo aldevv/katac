@@ -16,11 +16,8 @@ pub struct Config {
     pub katas_dir: String,
     pub days_dir: String,
     pub global_config_file: GlobalConfigFile,
-    pub global_config_filepath: PathBuf,
     pub local_config_file: LocalConfigFile,
-    pub local_config_filepath: PathBuf,
     pub global_katas_file: GlobalKatasFile,
-    pub global_katas_filepath: PathBuf,
 }
 
 impl Config {
@@ -28,27 +25,26 @@ impl Config {
         let katas_dir = Config::katas_dir(args);
         let days_dir = Config::days_dir(args);
 
-        let local_config_filepath = get_local_config_filepath(args);
-        let local_config_file = LocalConfigFile::new(&local_config_filepath).unwrap_or_default();
-        if !local_config_filepath.exists() {
+        let local_config_file =
+            LocalConfigFile::new(&local_config_filepath(args)).unwrap_or_default();
+        if !local_config_filepath(args).exists() {
             local_config_file
-                .update(&local_config_filepath)
+                .update()
                 .expect("Unable to update config file");
         }
 
-        let global_katas_filepath = get_global_katas_file_path();
-        let global_katas_file = GlobalKatasFile::new(&global_katas_filepath).unwrap_or_default();
-        if !global_katas_filepath.exists() {
+        let global_katas_file = GlobalKatasFile::new(&global_katas_filepath()).unwrap_or_default();
+        if !global_katas_filepath().exists() {
             global_katas_file
-                .update(&global_katas_filepath)
+                .update()
                 .expect("Unable to update config file");
         }
 
-        let global_config_filepath = get_global_config_filepath();
-        let global_config_file = GlobalConfigFile::new(&global_config_filepath).unwrap_or_default();
-        if !global_config_filepath.exists() {
+        let global_config_file =
+            GlobalConfigFile::new(&global_config_filepath()).unwrap_or_default();
+        if !global_config_filepath().exists() {
             global_config_file
-                .update(&global_config_filepath)
+                .update()
                 .expect("Unable to update config file");
         }
 
@@ -57,11 +53,8 @@ impl Config {
             katas_dir,
             days_dir,
             global_katas_file,
-            global_katas_filepath,
-            local_config_filepath,
             local_config_file,
             global_config_file,
-            global_config_filepath,
         }
     }
 
@@ -75,9 +68,12 @@ impl Config {
             path: self.kata_absolute_path(kata_name),
         });
 
-        let new_global_katas_file = GlobalKatasFile { katas: Some(katas) };
+        let new_global_katas_file = GlobalKatasFile {
+            katas: Some(katas),
+            ..self.global_katas_file.clone()
+        };
         new_global_katas_file
-            .update(&self.global_katas_filepath)
+            .update()
             .expect("Unable to update config file");
         self.global_katas_file = new_global_katas_file;
     }
@@ -199,7 +195,7 @@ pub fn share_dir() -> String {
     }
 }
 
-pub fn get_local_config_filepath(args: &Args) -> PathBuf {
+pub fn local_config_filepath(args: &Args) -> PathBuf {
     PathBuf::from(
         args.config_file
             .clone()
@@ -207,11 +203,11 @@ pub fn get_local_config_filepath(args: &Args) -> PathBuf {
     )
 }
 
-pub fn get_global_katas_file_path() -> PathBuf {
+pub fn global_katas_filepath() -> PathBuf {
     PathBuf::from(share_dir() + "/" + DEF_GLOBAL_KATAS_FILENAME)
 }
 
-pub fn get_global_config_filepath() -> PathBuf {
+pub fn global_config_filepath() -> PathBuf {
     PathBuf::from(share_dir() + DEF_CONFIG_FILENAME)
 }
 

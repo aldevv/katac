@@ -8,8 +8,11 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct GlobalConfigFile {
+    #[serde(skip)]
+    pub filepath: PathBuf,
+
     pub repos: Option<Vec<Repo>>,
-    pub workplaces: Option<Vec<Workplace>>,
+    pub workspaces: Option<Vec<Workspace>>,
 }
 
 impl GlobalConfigFile {
@@ -23,20 +26,22 @@ impl GlobalConfigFile {
         }
 
         let str = fs::read_to_string(filename)?;
-        Ok(serde_json::from_str(&str)?)
+        let mut global_config: GlobalConfigFile = serde_json::from_str(&str)?;
+        global_config.filepath = filename.to_path_buf();
+        Ok(global_config)
     }
 
-    pub fn update(&self, filename: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update(&self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Updating global config.json file");
 
-        if let Some(path) = filename.parent() {
+        if let Some(path) = self.filepath.parent() {
             if !path.exists() {
                 Err(format!("{} does not exist", path.display()))?;
             }
         }
 
         let str = serde_json::to_string_pretty(self)?;
-        fs::write(filename, str)?;
+        fs::write(self.filepath.clone(), str)?;
 
         Ok(())
     }
@@ -50,7 +55,7 @@ pub struct Repo {
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
-pub struct Workplace {
+pub struct Workspace {
     pub name: String,
     pub path: String,
     pub katas_dir: String,

@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
 #[serde(transparent)] // this is to make sure that the json is an array
 pub struct GlobalKatasFile {
+    #[serde(skip)]
+    pub filepath: PathBuf,
+
     pub katas: Option<Vec<Kata>>,
 }
 
@@ -26,14 +29,13 @@ impl GlobalKatasFile {
 
         let str = fs::read_to_string(filename)?;
 
-        Ok(toml::from_str(&str)?)
+        let mut globals: GlobalKatasFile = serde_json::from_str(&str)?;
+        globals.filepath = filename.to_path_buf();
+        Ok(globals)
     }
 
-    pub fn update(
-        &self,
-        global_katas_file_name: &PathBuf,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update(&self) -> Result<(), Box<dyn std::error::Error>> {
         let json = serde_json::to_string(&self)?;
-        Ok(fs::write(global_katas_file_name, json)?)
+        Ok(fs::write(self.filepath.clone(), json)?)
     }
 }

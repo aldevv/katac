@@ -36,12 +36,14 @@ pub struct Kata {
 
 pub struct Katac {
     pub cfg: Config,
-    // all katas in the katas_dir and the state file
+    /// all katas, both globally and locally
     pub all_katas: Vec<Kata>,
-    // katas in katas_dir
+    /// katas in current workspace
     pub local_katas: Vec<Kata>,
-    // katas already saved in the state file
+    /// katas in the globals file
     pub global_katas: Vec<Kata>,
+    // NOTE: this is a future feature
+    // pub workspace: Workspace,
 }
 
 impl Katac {
