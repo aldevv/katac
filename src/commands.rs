@@ -133,3 +133,11 @@ pub fn create_os_run_file(mut kata_path: PathBuf) {
             .expect("failed to set permissions on the linux run file");
     }
 }
+
+pub fn make_is_installed() -> bool {
+    Command::new("make")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .status()
+        .is_ok()
+}

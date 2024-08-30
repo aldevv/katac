@@ -4,6 +4,8 @@ use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
 
+use crate::{args::Args, config::local_config_filepath};
+
 // default location
 // ./katac.json
 
@@ -16,18 +18,22 @@ pub struct LocalConfigFile {
 }
 
 impl LocalConfigFile {
-    pub fn new(filename: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
-        info!("Reading katac_config.toml file");
+    pub fn new(args: &Args) -> Result<Self, Box<dyn std::error::Error>> {
+        info!("Reading local config file");
 
-        if let Some(path) = filename.parent() {
+        let filepath = local_config_filepath(args);
+        if let Some(path) = filepath.parent() {
             if !path.exists() {
                 Err(format!("{} does not exist", path.display()))?;
             }
         }
 
-        let str = fs::read_to_string(filename)?;
+        let str = fs::read_to_string(&filepath)?;
         let mut local_config: LocalConfigFile = serde_json::from_str(&str)?;
-        local_config.filepath = filename.to_path_buf();
+        local_config.filepath = filepath.to_path_buf();
+        if !filepath.exists() {
+            local_config.update().expect("Unable to update config file");
+        }
         Ok(local_config)
     }
 

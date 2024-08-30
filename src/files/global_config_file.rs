@@ -3,6 +3,8 @@ use std::{fs, path::PathBuf};
 use log::info;
 use serde::{Deserialize, Serialize};
 
+use crate::{config::global_config_filepath, Workspace};
+
 // default location
 // ~/.config/share/katac/katac.json
 
@@ -16,18 +18,25 @@ pub struct GlobalConfigFile {
 }
 
 impl GlobalConfigFile {
-    pub fn new(filename: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         info!("Reading global config.json file");
 
-        if let Some(path) = filename.parent() {
+        let filepath = global_config_filepath();
+        if let Some(path) = filepath.parent() {
             if !path.exists() {
                 Err(format!("{} does not exist", path.display()))?;
             }
         }
 
-        let str = fs::read_to_string(filename)?;
+        let str = fs::read_to_string(&filepath)?;
         let mut global_config: GlobalConfigFile = serde_json::from_str(&str)?;
-        global_config.filepath = filename.to_path_buf();
+        global_config.filepath = filepath.to_path_buf();
+        if !filepath.exists() {
+            global_config
+                .update()
+                .expect("Unable to update config file");
+        }
+
         Ok(global_config)
     }
 
@@ -45,6 +54,27 @@ impl GlobalConfigFile {
 
         Ok(())
     }
+
+    pub fn add_workspace(&mut self, ws: &Workspace) {
+        let mut workspaces = self.workspaces.clone().unwrap_or_default();
+        workspaces.push(ws.clone());
+
+        self.workspaces = Some(workspaces);
+        self.update().expect("Unable to update config file");
+    }
+
+    pub fn contains_workspace(&self, name: &str) -> bool {
+        self.workspaces
+            .clone()
+            .unwrap_or_default()
+            .iter()
+            .any(|ws| ws.name == name)
+    }
+
+    pub fn load_repos(&self) -> Vec<Repo> {
+        // TODO: load from repos folder
+        vec![]
+    }
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
@@ -52,12 +82,5 @@ pub struct Repo {
     pub name: String,
     pub path: String,
     pub author: String,
-}
-
-#[derive(Clone, Default, Serialize, Deserialize, Debug)]
-pub struct Workspace {
-    pub name: String,
-    pub path: String,
-    pub katas_dir: String,
-    pub days_dir: String,
+    pub katas: Vec<String>,
 }

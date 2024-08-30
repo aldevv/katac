@@ -2,8 +2,8 @@ use crate::args::Args;
 use crate::files::global_config_file::GlobalConfigFile;
 use crate::files::global_katas_file::GlobalKatasFile;
 use crate::files::local_config_file::LocalConfigFile;
+use crate::workspaces::Workspace;
 use crate::Kata;
-use std::fs;
 use std::path::PathBuf;
 
 pub const DEF_KATAS_DIR: &str = "katas";
@@ -12,178 +12,43 @@ pub const DEF_GLOBAL_KATAS_FILENAME: &str = "global_katas.json";
 pub const DEF_CONFIG_FILENAME: &str = "katac.json";
 
 pub struct Config {
-    pub args: Args,
-    pub katas_dir: String,
-    pub days_dir: String,
+    pub global_katas_file: GlobalKatasFile,
     pub global_config_file: GlobalConfigFile,
     pub local_config_file: LocalConfigFile,
-    pub global_katas_file: GlobalKatasFile,
 }
 
 impl Config {
     pub fn new(args: &Args) -> Self {
-        let katas_dir = Config::katas_dir(args);
-        let days_dir = Config::days_dir(args);
-
-        let local_config_file =
-            LocalConfigFile::new(&local_config_filepath(args)).unwrap_or_default();
-        if !local_config_filepath(args).exists() {
-            local_config_file
-                .update()
-                .expect("Unable to update config file");
-        }
-
-        let global_katas_file = GlobalKatasFile::new(&global_katas_filepath()).unwrap_or_default();
-        if !global_katas_filepath().exists() {
-            global_katas_file
-                .update()
-                .expect("Unable to update config file");
-        }
-
-        let global_config_file =
-            GlobalConfigFile::new(&global_config_filepath()).unwrap_or_default();
-        if !global_config_filepath().exists() {
-            global_config_file
-                .update()
-                .expect("Unable to update config file");
-        }
-
+        let local_config_file = LocalConfigFile::new(args).unwrap_or_default();
+        let global_katas_file = GlobalKatasFile::new().unwrap_or_default();
+        let global_config_file = GlobalConfigFile::new().unwrap_or_default();
         Self {
-            args: args.clone(),
-            katas_dir,
-            days_dir,
             global_katas_file,
             local_config_file,
             global_config_file,
         }
     }
+}
 
-    // TODO: move this to the globals file
-
-    // save in global katas file
-    pub fn save_in_globals(&mut self, kata_name: &str) {
-        let mut katas = self.global_katas_file.katas.clone().unwrap_or_default();
-        katas.push(Kata {
-            name: kata_name.to_string(),
-            path: self.kata_absolute_path(kata_name),
-        });
-
-        let new_global_katas_file = GlobalKatasFile {
-            katas: Some(katas),
-            ..self.global_katas_file.clone()
-        };
-        new_global_katas_file
-            .update()
-            .expect("Unable to update config file");
-        self.global_katas_file = new_global_katas_file;
-    }
-
-    // is saved in global katas file
+impl Config {
     pub fn is_saved_in_globals(&self, kata: &str) -> bool {
-        self.global_katas_file
-            .katas
-            .clone()
-            .unwrap_or_default()
-            .iter()
-            .any(|k| k.name == kata)
+        self.global_katas_file.is_saved(kata)
     }
 
-    pub fn local_katas(&self) -> Vec<Kata> {
-        fs::read_dir(self.katas_dir.clone())
-            .expect("Unable to read katas folder")
-            .filter_map(|e| e.ok())
-            .filter_map(|e| e.file_name().into_string().ok())
-            .map(|e| Kata {
-                name: e.clone(),
-                path: self.local_kata_path(&e),
-            })
-            .collect()
+    pub fn save_in_globals(&mut self, kata: Kata) {
+        self.global_katas_file.save(&kata.name, kata.path);
+    }
+
+    pub fn is_new_workspace(&self, workspace: &str) -> bool {
+        !self.global_config_file.contains_workspace(workspace)
+    }
+
+    pub fn add_workspace(&mut self, workspace: &Workspace) {
+        self.global_config_file.add_workspace(workspace);
     }
 
     pub fn global_katas(&self) -> Vec<Kata> {
-        self.global_katas_file
-            .katas
-            .clone()
-            .unwrap_or_default()
-            .iter()
-            .map(|k| Kata {
-                name: k.name.clone(),
-                path: k.path.clone(),
-            })
-            .collect()
-    }
-
-    /// priorities are:
-    /// --katas-dir arg
-    /// KATAS_DIR env var
-    /// katas_dir config file property
-    /// default value
-    fn katas_dir(args: &Args) -> String {
-        args.katas_dir
-            .clone()
-            .or_else(|| std::env::var("KATAS_DIR").ok())
-            .unwrap_or_else(|| DEF_KATAS_DIR.to_string())
-    }
-
-    /// priorities are:
-    /// --days-dir arg
-    /// DAYS_DIR env var
-    /// days_dir config file property
-    /// default value
-    fn days_dir(args: &Args) -> String {
-        args.days_dir
-            .clone()
-            .or_else(|| std::env::var("DAYS_DIR").ok())
-            .unwrap_or_else(|| DEF_DAYS_DIR.to_string())
-    }
-
-    pub fn curday(&self) -> u32 {
-        match fs::read_dir(self.days_dir.clone()) {
-            Err(_) => 0,
-            Ok(dir) => dir
-                .filter_map(|e| e.ok())
-                .filter_map(|e| e.file_name().into_string().ok())
-                .map(|e| e.trim_start_matches("day").to_string())
-                .filter_map(|e| e.parse::<u32>().ok())
-                .max()
-                .unwrap(),
-        }
-    }
-
-    /// returns the path of the current day
-    pub fn curday_path(&self) -> PathBuf {
-        PathBuf::from(format!("{}/day{}", self.days_dir, self.curday()))
-    }
-
-    /// returns the path of the next day
-    pub fn nextday_path(&self) -> PathBuf {
-        PathBuf::from(format!("{}/day{}", self.days_dir, self.curday() + 1))
-    }
-
-    /// returns the path of the given kata in the current day
-    pub fn curday_kata_path(&self, kata_name: &String) -> PathBuf {
-        self.curday_path().join(kata_name)
-    }
-
-    /// returns a vector of katas from the current day folder
-    pub fn curday_katas(&self) -> Vec<String> {
-        fs::read_dir(self.curday_path())
-            .expect("Unable to read current day contents")
-            .filter_map(|e| e.ok())
-            .filter_map(|e| e.file_name().into_string().ok())
-            .collect()
-    }
-
-    /// returns the path of the given kata
-    pub fn local_kata_path(&self, kata_name: &str) -> PathBuf {
-        if kata_name.contains('/') {
-            return PathBuf::from(kata_name.to_string());
-        }
-        PathBuf::from(format!("{}/{}", self.katas_dir, kata_name))
-    }
-
-    pub fn kata_absolute_path(&self, kata_name: &str) -> PathBuf {
-        self.local_kata_path(kata_name).canonicalize().unwrap()
+        self.global_katas_file.global_katas()
     }
 }
 
