@@ -5,7 +5,7 @@ pub mod files;
 pub mod workspaces;
 
 use args::Args;
-use config::{merge_local_and_global_katas, Config};
+use config::Config;
 use fs_extra::dir::CopyOptions;
 use inquire::{InquireError, MultiSelect};
 use log::info;
@@ -19,10 +19,13 @@ use crate::commands::{
     create_makefile, create_os_run_file, make_is_installed, run_custom_command, run_using_makefile,
     USE_MAKEFILE,
 };
+use crate::workspaces::get_kata_path;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Kata {
+    /// the name of the kata
     pub name: String,
+    /// the relative path
     pub path: PathBuf,
     // TODO: add workplace field so that new folders are clean, katac repos (shows list, then
     // copies, add an option to clean state file for a workplace, workplace NEEDS to be added
@@ -51,21 +54,19 @@ pub struct Katac {
 impl Katac {
     pub fn new(args: &Args) -> Self {
         let workspace = Workspace::new(args);
+        info!("Workspace: {:?}", workspace);
 
         let mut cfg = Config::new(args);
-        // TODO: check this logic, it's not working as expected
-        if !cfg.is_new_workspace(&workspace.name) {
-            info!("Workspace {} found in global config file", workspace.name);
+        if cfg.is_new_workspace(&workspace.name) {
             cfg.add_workspace(&workspace);
         }
 
-        let global_katas = cfg.global_katas();
-        let all_katas = merge_local_and_global_katas(workspace.katas.clone(), global_katas.clone());
+        let all_katas = cfg.global_config_file.all_katas();
         Self {
             args: args.clone(),
+            workspace,
             cfg,
             all_katas,
-            workspace,
         }
     }
 
@@ -107,11 +108,11 @@ impl Katac {
         }
 
         for kata in chosen_katas.clone().into_iter() {
-            if !self.workspace.local_kata_path(&kata).exists() {
+            if !self.workspace.contains(&kata) {
                 println!(
                     "Kata {} not found in {}",
                     kata,
-                    self.workspace.local_kata_path(&kata).display()
+                    get_kata_path(&kata, self.workspace.katas_dir.clone()).display()
                 );
                 std::process::exit(1);
             }
@@ -120,6 +121,8 @@ impl Katac {
     }
 
     pub fn find_kata_path(&self, kata_name: &str) -> PathBuf {
+        info!("Finding kata path for {}", kata_name);
+        info! {"all_katas: {:?}", self.all_katas};
         self.all_katas
             .iter()
             .find(|k| k.name == kata_name)
@@ -149,13 +152,6 @@ impl Katac {
                 Ok(_) => println!("Copying {} to {}...", kata_name, basename(&dst)),
                 Err(e) => println!("Error: {}", e),
             }
-
-            if !self.cfg.is_saved_in_globals(kata_name) {
-                self.cfg.save_in_globals(Kata {
-                    name: kata_name.clone(),
-                    path: self.workspace.kata_absolute_path(kata_name),
-                });
-            }
         }
     }
 
@@ -179,10 +175,10 @@ impl Katac {
 
     /// returns a vector of random katas from the katas.toml file or the katas folder
     pub fn get_random_katas(&self, num_katas_wanted: u8) -> Vec<String> {
-        let random_katas = if self.cfg.local_config_file.random.is_some() {
+        let random_katas = if !self.cfg.local_config_file.random.is_empty() {
             self.cfg.local_config_file.get_random_katas_from_config()
         } else {
-            info!("no katac_config.toml found, reading katas folder for random katas");
+            info!("no katac config found, reading local katas folder for random katas");
             let mut local_katas: Vec<String> = self
                 .workspace
                 .katas
@@ -199,22 +195,17 @@ impl Katac {
         }
         random_katas[0..num_katas_wanted as usize].to_vec()
     }
+
     /// creates a new kata in the kata_dir folder or the given path
     pub fn create(&self, kata_name: String) {
-        let kata_path = self.workspace.local_kata_path(&kata_name);
-        if kata_path.exists() {
-            println!("Kata {} already exists", kata_name);
-            std::process::exit(1);
-        }
-        fs::create_dir_all(&kata_path).expect("failed to create the kata folder");
-        println!("{} created in {}.", kata_name, dirname(&kata_path));
+        let kata = self.workspace.new_kata(&kata_name);
 
         if USE_MAKEFILE && make_is_installed() {
-            create_makefile(kata_path);
+            create_makefile(kata.path);
             return;
         }
 
-        create_os_run_file(kata_path);
+        create_os_run_file(kata.path);
     }
 
     pub fn random_katas(&mut self, num_katas_wanted: u8) {
@@ -225,9 +216,4 @@ impl Katac {
 /// returns the basename of a path
 fn basename(path: &Path) -> String {
     path.file_name().unwrap().to_str().unwrap().to_string()
-}
-
-/// returns the dirname of a path
-fn dirname(path: &Path) -> String {
-    path.parent().unwrap().to_str().unwrap().to_string()
 }

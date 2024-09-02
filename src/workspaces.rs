@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     args::Args,
@@ -9,8 +12,13 @@ use crate::{
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct Workspace {
+    /// workspace name
     pub name: String,
+    /// workspace fullpath
     pub path: PathBuf,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub remote: String,
+    pub author: String,
     pub katas_dir: PathBuf,
     pub days_dir: PathBuf,
     pub katas: Vec<Kata>,
@@ -22,38 +30,50 @@ impl Workspace {
         let name = path.file_name().unwrap().to_str().unwrap().to_string();
         let katas_dir = katas_dir(args);
         let days_dir = days_dir(args);
+        let remote = "";
+        let author = std::env::var("USER").unwrap_or_else(|_| "unknown".to_string());
 
         let mut ws = Self {
             name,
             path,
+            remote: remote.to_string(),
+            author,
             katas_dir,
             days_dir,
             katas: vec![],
         };
-        ws.katas = ws.local_katas();
+        ws.katas = ws.get_katas();
         ws
     }
-    pub fn local_katas(&self) -> Vec<Kata> {
+
+    pub fn get_katas(&self) -> Vec<Kata> {
         fs::read_dir(self.katas_dir.clone())
             .expect("Unable to read katas folder")
             .filter_map(|e| e.ok())
             .filter_map(|e| e.file_name().into_string().ok())
             .map(|e| Kata {
                 name: e.clone(),
-                path: self.local_kata_path(&e),
+                path: get_kata_path(&e, self.katas_dir.clone()),
             })
             .collect()
     }
 
-    pub fn local_kata_path(&self, kata_name: &str) -> PathBuf {
-        if kata_name.contains('/') {
-            return PathBuf::from(kata_name.to_string());
-        }
-        PathBuf::from(format!("{}/{}", self.katas_dir.display(), kata_name))
+    pub fn contains(&self, kata_name: &str) -> bool {
+        self.katas.iter().any(|k| k.name == kata_name)
     }
 
-    pub fn kata_absolute_path(&self, kata_name: &str) -> PathBuf {
-        self.local_kata_path(kata_name).canonicalize().unwrap()
+    pub fn new_kata(&self, kata_name: &str) -> Kata {
+        let kata_path = get_kata_path(kata_name, self.katas_dir.clone());
+        if kata_path.exists() {
+            println!("Kata already exists");
+            std::process::exit(1);
+        }
+        fs::create_dir_all(&kata_path).expect("Unable to create kata folder");
+        println!("{} created in {}.", kata_name, dirname(&kata_path));
+        Kata {
+            name: kata_name.to_string(),
+            path: kata_path,
+        }
     }
 
     pub fn curday(&self) -> u32 {
@@ -124,4 +144,17 @@ pub fn days_dir(args: &Args) -> PathBuf {
             .or_else(|| std::env::var("DAYS_DIR").ok())
             .unwrap_or_else(|| DEF_DAYS_DIR.to_string()),
     )
+}
+
+/// returns the path of the kata in the katas folder
+pub fn get_kata_path(kata_name: &str, katas_dir: PathBuf) -> PathBuf {
+    if kata_name.contains('/') {
+        return PathBuf::from(kata_name.to_string());
+    }
+    PathBuf::from(format!("{}/{}", katas_dir.display(), kata_name))
+}
+
+/// returns the dirname of a path
+fn dirname(path: &Path) -> String {
+    path.parent().unwrap().to_str().unwrap().to_string()
 }
