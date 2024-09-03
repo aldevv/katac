@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, process};
 
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -12,9 +12,6 @@ use crate::{config::global_config_path, Kata, Workspace};
 pub struct GlobalConfigFile {
     #[serde(skip)]
     pub path: PathBuf,
-
-    // TODO: maybe repos are not needed, add a source field to a workspace, to see if is a remote
-    // workspace!
     pub workspaces: Vec<Workspace>,
 }
 
@@ -64,8 +61,36 @@ impl GlobalConfigFile {
     }
 
     pub fn add_workspace(&mut self, ws: &Workspace) {
+        // check if the workspace already exists
+        if self.contains_workspace(&ws.name) {
+            println!("Workspace already exists");
+            process::exit(1);
+        }
+
+        if !ws.path.exists() {
+            fs::create_dir_all(&ws.path).expect("failed to create the workspace folder");
+        }
+
         self.workspaces.push(ws.clone());
         self.update().expect("Unable to update config file");
+    }
+
+    pub fn list_workspaces(&self) {
+        for ws in self.workspaces.clone() {
+            println!("{}", ws.name);
+        }
+    }
+
+    pub fn remove_workspace(&mut self, name: &str) {
+        self.workspaces.retain(|ws| ws.name != name);
+        self.update().expect("Unable to update config file");
+    }
+
+    pub fn find_workspace(&self, name: &str) -> Option<Workspace> {
+        self.workspaces
+            .clone()
+            .into_iter()
+            .find(|ws| ws.name == name)
     }
 
     pub fn contains_workspace(&self, name: &str) -> bool {

@@ -39,6 +39,18 @@ impl Config {
     pub fn add_workspace(&mut self, workspace: &Workspace) {
         self.global_config_file.add_workspace(workspace);
     }
+
+    pub fn list_workspaces(&self) {
+        self.global_config_file.list_workspaces();
+    }
+
+    pub fn remove_workspace(&mut self, name: &str) {
+        self.global_config_file.remove_workspace(name);
+    }
+
+    pub fn find_workspace(&self, name: &str) -> Option<Workspace> {
+        self.global_config_file.find_workspace(name)
+    }
 }
 
 pub fn share_dir() -> String {

@@ -46,8 +46,7 @@ impl Workspace {
         ws
     }
 
-    pub fn new_with(args: &Args, name: &str, path: &str) -> Self {
-        let path = PathBuf::from(path);
+    pub fn new_with(args: &Args, name: &str, path: PathBuf) -> Self {
         let katas_dir = katas_dir(args);
         let days_dir = days_dir(args);
         let remote = "";

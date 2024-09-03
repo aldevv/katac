@@ -9,7 +9,6 @@ use katac::{
 };
 
 use clap::Parser;
-use log::debug;
 
 fn main() {
     env_logger::init();
@@ -32,23 +31,16 @@ fn main() {
             Workspace { subcommand } => match subcommand {
                 Some(subcommand) => match subcommand {
                     WorkspaceSubcommands::Add { name, path, remote } => {
-                        debug!("Adding workspace: {} at path: {:?}", name, path);
-                        katac.add_workspace(name, path, remote.clone())
+                        katac.add_workspace(name.clone(), path.clone(), remote.clone())
                     }
-                    WorkspaceSubcommands::List => {
-                        debug!("Listing workspaces");
-                    }
-                    WorkspaceSubcommands::Remove { name } => {
-                        debug!("Removing workspace: {}", name);
-                    }
+                    WorkspaceSubcommands::List => katac.list_workspaces(),
+                    WorkspaceSubcommands::Remove { name } => katac.remove_workspace(name),
 
                     WorkspaceSubcommands::ListKatas { workspace_name } => {
-                        debug!("Listing katas in workspace: {}", workspace_name);
+                        katac.list_katas(workspace_name.clone())
                     }
 
-                    WorkspaceSubcommands::ListAllKatas => {
-                        debug!("Listing all katas");
-                    }
+                    WorkspaceSubcommands::ListAllKatas => katac.list_all_katas(),
                 },
                 None => {
                     println!("Not implemented yet");

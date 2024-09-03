@@ -63,12 +63,12 @@ pub enum WorkspaceSubcommands {
     /// Add a new workspace
     Add {
         /// Name of the workspace
-        #[arg(required = true, num_args = 1..)]
-        name: String,
+        #[arg(required = false, short, long)]
+        name: Option<String>,
 
         /// Path to the workspace, can be remote
-        #[arg(required = true, short, long)]
-        path: String,
+        #[arg(required = false, short, long)]
+        path: Option<String>,
 
         /// Remote repository
         #[arg(short, long)]
@@ -88,8 +88,8 @@ pub enum WorkspaceSubcommands {
     /// List all katas in a workspace
     ListKatas {
         /// Name of the workspace
-        #[arg(required = true, num_args = 1..)]
-        workspace_name: String,
+        #[arg(required = false, short, long)]
+        workspace_name: Option<String>,
     },
 
     ListAllKatas,

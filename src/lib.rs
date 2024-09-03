@@ -27,18 +27,6 @@ pub struct Kata {
     pub name: String,
     /// the relative path
     pub path: PathBuf,
-    // TODO: add workplace field so that new folders are clean, katac repos (shows list, then
-    // copies, add an option to clean state file for a workplace, workplace NEEDS to be added
-    // manually, katac add workspace <name> <path> to add a new workplace)
-    // this way even if I'm in the wrong folder it will always copy to the correct place,
-    // katac practice is organized, having more than one workplace is weird so having it as
-    // a command that is manual is good, do a katac init to create a new workspace? sounds good
-    // have a global state for workspaces, and the one currently selected (how about a .katac
-    // folder?, is cool because it will be local to the project, and we won't need to worry about
-    // being in the wrong folder (just look for parents until you find a .katac folder)
-    // pub workplace: Vec<String>, // maybe not needed if we use a .katac folder in the project root
-
-    // chose to use workplaces instead of .katac folder in each project
 }
 
 pub struct Katac {
@@ -54,8 +42,6 @@ pub struct Katac {
 impl Katac {
     pub fn new(args: &Args) -> Self {
         let workspace = Workspace::new(args);
-        info!("Workspace: {:?}", workspace);
-
         let mut cfg = Config::new(args);
         if cfg.is_new_workspace(&workspace.name) {
             cfg.add_workspace(&workspace);
@@ -212,12 +198,55 @@ impl Katac {
         self.copy_katas(&self.get_random_katas(num_katas_wanted));
     }
 
-    pub fn add_workspace(&mut self, name: &str, path: &str, remote: Option<String>) {
-        let workspace = Workspace::new_with(&self.args, name, path);
+    pub fn add_workspace(
+        &mut self,
+        name: Option<String>,
+        path: Option<String>,
+        remote: Option<String>,
+    ) {
+        let path = if let Some(path) = path {
+            PathBuf::from(path)
+        } else {
+            std::env::current_dir().unwrap()
+        };
+
+        let name = if let Some(name) = name {
+            name
+        } else {
+            path.file_name().unwrap().to_str().unwrap().to_string()
+        };
+
+        let workspace = Workspace::new_with(&self.args, &name, path);
         self.cfg.add_workspace(&workspace);
 
         if let Some(remote) = remote {
             workspace.clone_from_remote(&remote);
+        }
+    }
+
+    pub fn list_workspaces(&self) {
+        self.cfg.list_workspaces();
+    }
+
+    pub fn remove_workspace(&mut self, name: &str) {
+        self.cfg.remove_workspace(name);
+    }
+
+    pub fn list_katas(&self, workspace_name: Option<String>) {
+        let workspace = if let Some(name) = workspace_name {
+            self.cfg.find_workspace(&name).expect("Workspace not found")
+        } else {
+            self.workspace.clone()
+        };
+
+        for kata in workspace.katas.clone() {
+            println!("{}", kata.name);
+        }
+    }
+
+    pub fn list_all_katas(&self) {
+        for kata in self.all_katas.clone() {
+            println!("{}", kata.name);
         }
     }
 }
