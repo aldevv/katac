@@ -21,11 +21,11 @@ pub struct Args {
     pub kata_names_args: Option<Vec<String>>,
 
     #[command(subcommand)]
-    pub subcommand: Option<Subcommands>,
+    pub subcommand: Option<KatacSubcommands>,
 }
 
 #[derive(Clone, Subcommand, Debug)]
-pub enum Subcommands {
+pub enum KatacSubcommands {
     /// Katas you want to run today (requires a makefile with the  'run' target in the kata's root folder)
     Run {
         /// Katas to run
@@ -45,9 +45,52 @@ pub enum Subcommands {
     },
 
     /// Create a new kata
-    Create {
+    Add {
         /// Name of the kata you want to create
         #[arg(required = true, num_args = 1..)]
         kata_name: String,
     },
+
+    Workspace {
+        // subcommand list
+        #[command(subcommand)]
+        subcommand: Option<WorkspaceSubcommands>,
+    },
+}
+
+#[derive(Clone, Subcommand, Debug)]
+pub enum WorkspaceSubcommands {
+    /// Add a new workspace
+    Add {
+        /// Name of the workspace
+        #[arg(required = true, num_args = 1..)]
+        name: String,
+
+        /// Path to the workspace, can be remote
+        #[arg(required = true, short, long)]
+        path: String,
+
+        /// Remote repository
+        #[arg(short, long)]
+        remote: Option<String>,
+    },
+
+    /// List all workspaces
+    List,
+
+    /// Remove a workspace
+    Remove {
+        /// Name of the workspace
+        #[arg(required = true, num_args = 1..)]
+        name: String,
+    },
+
+    /// List all katas in a workspace
+    ListKatas {
+        /// Name of the workspace
+        #[arg(required = true, num_args = 1..)]
+        workspace_name: String,
+    },
+
+    ListAllKatas,
 }

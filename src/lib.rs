@@ -196,9 +196,9 @@ impl Katac {
         random_katas[0..num_katas_wanted as usize].to_vec()
     }
 
-    /// creates a new kata in the kata_dir folder or the given path
-    pub fn create(&self, kata_name: String) {
-        let kata = self.workspace.new_kata(&kata_name);
+    /// adds a new kata in the kata_dir folder or the given path
+    pub fn add(&self, kata_name: String) {
+        let kata = self.workspace.add(&kata_name);
 
         if USE_MAKEFILE && make_is_installed() {
             create_makefile(kata.path);
@@ -210,6 +210,15 @@ impl Katac {
 
     pub fn random_katas(&mut self, num_katas_wanted: u8) {
         self.copy_katas(&self.get_random_katas(num_katas_wanted));
+    }
+
+    pub fn add_workspace(&mut self, name: &str, path: &str, remote: Option<String>) {
+        let workspace = Workspace::new_with(&self.args, name, path);
+        self.cfg.add_workspace(&workspace);
+
+        if let Some(remote) = remote {
+            workspace.clone_from_remote(&remote);
+        }
     }
 }
 

@@ -46,6 +46,26 @@ impl Workspace {
         ws
     }
 
+    pub fn new_with(args: &Args, name: &str, path: &str) -> Self {
+        let path = PathBuf::from(path);
+        let katas_dir = katas_dir(args);
+        let days_dir = days_dir(args);
+        let remote = "";
+        let author = std::env::var("USER").unwrap_or_else(|_| "unknown".to_string());
+
+        let mut ws = Self {
+            name: name.to_string(),
+            path,
+            remote: remote.to_string(),
+            author,
+            katas_dir,
+            days_dir,
+            katas: vec![],
+        };
+        ws.katas = ws.get_katas();
+        ws
+    }
+
     pub fn get_katas(&self) -> Vec<Kata> {
         fs::read_dir(self.katas_dir.clone())
             .expect("Unable to read katas folder")
@@ -62,7 +82,7 @@ impl Workspace {
         self.katas.iter().any(|k| k.name == kata_name)
     }
 
-    pub fn new_kata(&self, kata_name: &str) -> Kata {
+    pub fn add(&self, kata_name: &str) -> Kata {
         let kata_path = get_kata_path(kata_name, self.katas_dir.clone());
         if kata_path.exists() {
             println!("Kata already exists");
@@ -73,6 +93,21 @@ impl Workspace {
         Kata {
             name: kata_name.to_string(),
             path: kata_path,
+        }
+    }
+
+    pub fn clone_from_remote(&self, remote: &str) {
+        println!("Cloning from remote: {}", remote);
+        let output = std::process::Command::new("git")
+            .arg("clone")
+            .arg(remote)
+            .arg(self.path.display().to_string())
+            .output()
+            .expect("failed to execute process");
+
+        if !output.status.success() {
+            println!("Error: {}", String::from_utf8_lossy(&output.stderr));
+            std::process::exit(1);
         }
     }
 
