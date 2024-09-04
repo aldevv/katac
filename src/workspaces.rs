@@ -6,6 +6,7 @@ use std::{
 
 use crate::{
     args::Args,
+    commands::create_command,
     config::{DEF_DAYS_DIR, DEF_KATAS_DIR},
     Kata,
 };
@@ -26,8 +27,13 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn new(args: &Args) -> Self {
-        let path = std::env::current_dir().unwrap();
-        let name = path.file_name().unwrap().to_str().unwrap().to_string();
+        let path = std::env::current_dir().expect("Unable to get current dir");
+        let name = path
+            .file_name()
+            .expect("Unable to get current dir name")
+            .to_str()
+            .expect("Unable to convert to string")
+            .to_string();
         let katas_dir = katas_dir(args);
         let days_dir = days_dir(args);
         let remote = "";
@@ -67,7 +73,11 @@ impl Workspace {
 
     pub fn get_katas(&self) -> Vec<Kata> {
         fs::read_dir(self.katas_dir.clone())
-            .expect("Unable to read katas folder")
+            .map_err(|e| {
+                println!("Unable to read katas folder: {}", e);
+                std::process::exit(1);
+            })
+            .unwrap()
             .filter_map(|e| e.ok())
             .filter_map(|e| e.file_name().into_string().ok())
             .map(|e| Kata {
@@ -77,22 +87,31 @@ impl Workspace {
             .collect()
     }
 
+    pub fn get_kata_names(&self) -> Vec<String> {
+        self.katas.iter().map(|k| k.name.clone()).collect()
+    }
+
     pub fn contains(&self, kata_name: &str) -> bool {
         self.katas.iter().any(|k| k.name == kata_name)
     }
 
-    pub fn add(&self, kata_name: &str) -> Kata {
+    /// add a new kata to the workspace
+    pub fn add(&mut self, kata_name: &str) -> Kata {
         let kata_path = get_kata_path(kata_name, self.katas_dir.clone());
         if kata_path.exists() {
-            println!("Kata already exists");
+            println!("Kata {} already exists", kata_name);
             std::process::exit(1);
         }
         fs::create_dir_all(&kata_path).expect("Unable to create kata folder");
         println!("{} created in {}.", kata_name, dirname(&kata_path));
-        Kata {
+        let kata = Kata {
             name: kata_name.to_string(),
             path: kata_path,
-        }
+        };
+        self.katas.push(kata.clone());
+
+        create_command(kata.path.clone());
+        kata
     }
 
     pub fn clone_from_remote(&self, remote: &str) {
@@ -119,7 +138,7 @@ impl Workspace {
                 .map(|e| e.trim_start_matches("day").to_string())
                 .filter_map(|e| e.parse::<u32>().ok())
                 .max()
-                .unwrap(),
+                .unwrap_or_default(),
         }
     }
 
@@ -158,12 +177,14 @@ impl Workspace {
 /// katas_dir config file property
 /// default value
 pub fn katas_dir(args: &Args) -> PathBuf {
-    PathBuf::from(
+    let katas_dir = PathBuf::from(
         args.katas_dir
             .clone()
             .or_else(|| std::env::var("KATAS_DIR").ok())
             .unwrap_or_else(|| DEF_KATAS_DIR.to_string()),
-    )
+    );
+    fs::create_dir_all(&katas_dir).expect("Unable to create katas_dir folder");
+    katas_dir
 }
 
 /// priorities are:
@@ -172,12 +193,14 @@ pub fn katas_dir(args: &Args) -> PathBuf {
 /// days_dir config file property
 /// default value
 pub fn days_dir(args: &Args) -> PathBuf {
-    PathBuf::from(
+    let days_dir = PathBuf::from(
         args.days_dir
             .clone()
             .or_else(|| std::env::var("DAYS_DIR").ok())
             .unwrap_or_else(|| DEF_DAYS_DIR.to_string()),
-    )
+    );
+    fs::create_dir_all(&days_dir).expect("Unable to create days_dir folder");
+    days_dir
 }
 
 /// returns the path of the kata in the katas folder

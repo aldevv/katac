@@ -1,8 +1,8 @@
 pub mod args;
-pub mod commands;
-pub mod config;
-pub mod files;
-pub mod workspaces;
+mod commands;
+mod config;
+mod files;
+mod workspaces;
 
 use args::Args;
 use config::Config;
@@ -16,10 +16,13 @@ use std::path::{Path, PathBuf};
 use workspaces::Workspace;
 
 use crate::commands::{
-    create_makefile, create_os_run_file, make_is_installed, run_custom_command, run_using_makefile,
-    USE_MAKEFILE,
+    create_command, create_makefile, create_os_run_file, make_is_installed, run_custom_command,
+    run_using_makefile, USE_MAKEFILE,
 };
 use crate::workspaces::get_kata_path;
+
+pub type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
+pub type Error = Box<dyn std::error::Error>;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Kata {
@@ -62,7 +65,7 @@ impl Katac {
             .prompt()
             .unwrap_or_else(|err| match err {
                 InquireError::OperationInterrupted => {
-                    println!("User interrupted");
+                    println!("Interrupted");
                     std::process::exit(1);
                 }
                 InquireError::NotTTY => {
@@ -70,7 +73,6 @@ impl Katac {
                     std::process::exit(1);
                 }
                 _ => {
-                    println!("Unknown error");
                     std::process::exit(1);
                 }
             })
@@ -82,6 +84,7 @@ impl Katac {
     pub fn select(&mut self) {
         if self.args.kata_names_args.is_some() {
             let kata_names = self.args.kata_names_args.clone().unwrap();
+            // TODO: fix this so that it receives Katas instead of just kata_names
             self.copy_katas(&kata_names);
             return;
         }
@@ -108,11 +111,13 @@ impl Katac {
 
     pub fn find_kata_path(&self, kata_name: &str) -> PathBuf {
         info!("Finding kata path for {}", kata_name);
-        info! {"all_katas: {:?}", self.all_katas};
         self.all_katas
             .iter()
             .find(|k| k.name == kata_name)
-            .unwrap()
+            .unwrap_or_else(|| {
+                println!("Kata \"{}\" not found", kata_name);
+                std::process::exit(1);
+            })
             .path
             .clone()
     }
@@ -138,6 +143,8 @@ impl Katac {
                 Ok(_) => println!("Copying {} to {}...", kata_name, basename(&dst)),
                 Err(e) => println!("Error: {}", e),
             }
+
+            create_command(dst.clone().join(kata_name))
         }
     }
 
@@ -161,16 +168,11 @@ impl Katac {
 
     /// returns a vector of random katas from the katas.toml file or the katas folder
     pub fn get_random_katas(&self, num_katas_wanted: u8) -> Vec<String> {
-        let random_katas = if !self.cfg.local_config_file.random.is_empty() {
-            self.cfg.local_config_file.get_random_katas_from_config()
+        let random_katas = if let Some(local_config_file) = &self.cfg.local_config_file {
+            local_config_file.get_random_katas_from_config()
         } else {
-            info!("no katac config found, reading local katas folder for random katas");
-            let mut local_katas: Vec<String> = self
-                .workspace
-                .katas
-                .iter()
-                .map(|k| k.name.clone())
-                .collect();
+            info!("no katac.json config found, reading local katas folder for random katas");
+            let mut local_katas = self.workspace.get_kata_names();
             local_katas.shuffle(&mut thread_rng());
             local_katas
         };
@@ -183,7 +185,7 @@ impl Katac {
     }
 
     /// adds a new kata in the kata_dir folder or the given path
-    pub fn add(&self, kata_name: String) {
+    pub fn add(&mut self, kata_name: String) {
         let kata = self.workspace.add(&kata_name);
 
         if USE_MAKEFILE && make_is_installed() {

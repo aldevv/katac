@@ -12,3 +12,11 @@ build-test:
 
 it: build-test
 	docker run -it --rm katac_test sh
+
+link:
+	cargo build
+	ln -sf $(PWD)/target/debug/katac $(HOME)/.local/bin/katac
+
+link-release:
+	cargo build --release
+	ln -sf $(PWD)/target/release/katac $(HOME)/.local/bin/katac

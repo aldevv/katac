@@ -43,8 +43,7 @@ fn main() {
                     WorkspaceSubcommands::ListAllKatas => katac.list_all_katas(),
                 },
                 None => {
-                    println!("Not implemented yet");
-                    process::exit(1);
+                    katac.list_workspaces();
                 }
             },
         },

@@ -75,8 +75,13 @@ fn test_random_with_config_file() -> TestResult {
     std::fs::write(
         "tests/katac.toml",
         r#"
-[katas]
-random = ["foo", "bar", "baz"]
+{
+    "random": [
+        "foo",
+        "bar",
+        "baz"
+    ]
+}
 "#,
     )
     .expect("Unable to write config file");
@@ -90,7 +95,7 @@ random = ["foo", "bar", "baz"]
                 &test_day_folder,
                 "--katas-dir",
                 "tests/example_katas",
-                "--config",
+                "--config-file",
                 "tests/katac.toml",
                 "random",
                 "2",
@@ -125,7 +130,7 @@ fn test_random_no_config_file() -> TestResult {
                 &test_day_folder,
                 "--katas-dir",
                 "tests/example_katas",
-                "--config",
+                "--config-file",
                 "none",
                 "random",
                 "2",
@@ -157,6 +162,10 @@ fn test_run_kata_no_makefile() -> TestResult {
         .assert()
         .stdout("Copying foo to day1...\n");
 
+    // remove the Makefile
+    let day1 = std::path::Path::new(&test_day_folder).join("day1");
+    std::fs::remove_file(day1.join("foo").join("Makefile")).unwrap();
+
     Command::cargo_bin(PRG)?
         .args(["run", "foo"])
         .env("DAYS_DIR", &test_day_folder)
@@ -183,6 +192,7 @@ fn test_run_all() -> TestResult {
 
     let copy_output = String::from_utf8(cmd.get_output().stdout.clone())?;
     for s in ["foo", "bar", "baz"].iter() {
+        println!("{}", copy_output);
         assert!(copy_output.contains(&format!("Copying {} to day1...", s)));
     }
 
@@ -192,10 +202,11 @@ fn test_run_all() -> TestResult {
         .assert();
     let run_output = String::from_utf8(cmd.get_output().stdout.clone())?;
     for s in ["foo", "bar", "baz"].iter() {
+        println!("{}", run_output);
         assert!(run_output.contains(&format!("> Running {}", s)));
         match s {
             &"foo" | &"bar" => {
-                assert!(run_output.contains("No Makefile found in tests/day_test_run_all/day1"));
+                assert!(run_output.contains("TODO: add your run command here"));
             }
             &"baz" => {
                 assert!(run_output.contains("console.log(\"hello world\")"));
@@ -208,10 +219,10 @@ fn test_run_all() -> TestResult {
 }
 
 #[test]
-fn test_new_command() -> TestResult {
+fn test_add_kata() -> TestResult {
     let new_kata_folder = "tests/new_katas";
     Command::cargo_bin(PRG)?
-        .args(["new", "foo2"])
+        .args(["add", "foo2"])
         .env("KATAS_DIR", new_kata_folder)
         .assert()
         .stdout("foo2 created in tests/new_katas.\n");
@@ -220,9 +231,9 @@ fn test_new_command() -> TestResult {
 }
 
 #[test]
-fn test_new_command_already_exists() -> TestResult {
+fn test_add_kata_already_exists() -> TestResult {
     Command::cargo_bin(PRG)?
-        .args(["new", "foo"])
+        .args(["add", "foo"])
         .env("KATAS_DIR", "tests/example_katas")
         .assert()
         .stdout("Kata foo already exists\n");

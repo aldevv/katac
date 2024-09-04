@@ -6,6 +6,24 @@ use std::{self, process::Command};
 
 pub const USE_MAKEFILE: bool = true;
 
+pub fn create_command(path: PathBuf) {
+    if USE_MAKEFILE && make_is_installed() && !path.join("Makefile").exists() {
+        create_makefile(path.clone());
+        return;
+    }
+
+    create_os_run_file(path.clone());
+}
+
+/// creates a new Makefile in the given path
+pub fn create_makefile(mut path: PathBuf) {
+    let content = "run:\n\t@echo \"TODO: add your run command here\"";
+    path.push("Makefile");
+    let mut f = fs::File::create(path).expect("failed to create the Makefile");
+    f.write_all(content.as_bytes())
+        .expect("failed to write to the Makefile");
+}
+
 pub fn run_custom_command(command: &str, kata_path: PathBuf) -> Option<std::process::Child> {
     let mut command = command.split_whitespace();
     Some(
@@ -96,15 +114,6 @@ fn run_os_command(run_path: PathBuf) -> Option<std::process::Child> {
             .spawn()
             .expect("failed to run the kata"),
     );
-}
-
-/// creates a new Makefile in the given path
-pub fn create_makefile(mut path: PathBuf) {
-    let content = "run:\n\t@echo \"TODO: add your run command here\"";
-    path.push("Makefile");
-    let mut f = fs::File::create(path).expect("failed to create the Makefile");
-    f.write_all(content.as_bytes())
-        .expect("failed to write to the Makefile");
 }
 
 /// creates a new run.sh or run.bat file in the given path

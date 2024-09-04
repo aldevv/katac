@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf, process};
 use log::info;
 use serde::{Deserialize, Serialize};
 
-use crate::{config::global_config_path, Kata, Workspace};
+use crate::{config::global_config_path, Kata, Result, Workspace};
 
 // default location
 // ~/.config/share/katac/katac.json
@@ -16,7 +16,7 @@ pub struct GlobalConfigFile {
 }
 
 impl GlobalConfigFile {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new() -> Result<Self> {
         info!("Reading global config file");
 
         let path = global_config_path();
@@ -45,7 +45,7 @@ impl GlobalConfigFile {
         }
     }
 
-    pub fn update(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update(&self) -> Result<()> {
         info!("Updating global config.json file");
 
         if let Some(path) = self.path.parent() {
