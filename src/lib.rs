@@ -53,6 +53,7 @@ impl Katac {
             cfg.update_cfg_if_given_args(args, &mut workspace);
         }
 
+        // TODO: give the flag --all to show all katas
         let all_katas = cfg.all_katas(&workspace);
         Self {
             args: args.clone(),
@@ -63,7 +64,16 @@ impl Katac {
     }
 
     pub fn open_prompt(&self) -> Vec<String> {
-        let options: Vec<&str> = self.all_katas.iter().map(|k| k.name.as_str()).collect();
+        let options: Vec<String> = if self.args.all {
+            self.all_katas.iter().map(|k| k.name.clone()).collect()
+        } else {
+            self.workspace
+                .get_katas()
+                .clone()
+                .iter()
+                .map(|k| k.name.clone())
+                .collect()
+        };
         MultiSelect::new("Choose the katas you want:", options)
             .prompt()
             .unwrap_or_else(|err| match err {

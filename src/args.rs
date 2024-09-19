@@ -16,9 +16,14 @@ pub struct Args {
     #[arg(required = false, short, long)]
     pub config_file: Option<String>,
 
+    //TODO: change it to no-state so it's jsut a boolean
     /// state, keep track of workspaces and katas, defaults to true
     #[arg(short, long, default_value = "true")]
     pub state: String,
+
+    /// show katas from all saved workspaces
+    #[arg(short, long)]
+    pub all: bool,
 
     /// Katas you want to do today
     #[arg(required = false, num_args=1..)]
