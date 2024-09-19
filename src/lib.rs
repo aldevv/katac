@@ -45,7 +45,6 @@ pub struct Katac {
 impl Katac {
     pub fn new(args: &Args) -> Self {
         let mut cfg = Config::new(args);
-
         let mut workspace = Workspace::new(args);
         if cfg.is_new_workspace(&workspace.name) {
             cfg.add_workspace(&workspace);
@@ -54,7 +53,7 @@ impl Katac {
             cfg.update_cfg_if_given_args(args, &mut workspace);
         }
 
-        let all_katas = cfg.global_config_file.all_katas();
+        let all_katas = cfg.all_katas(&workspace);
         Self {
             args: args.clone(),
             workspace,
@@ -161,12 +160,14 @@ impl Katac {
             let run_str = format!("\n> Running {} [{}/{}]", kata_name, i + 1, kata_names.len());
             println!("{}\n{}", run_str, "-".repeat(run_str.len()));
 
-            let mut child = if let Some(command) = &command {
-                run_custom_command(command, curday_kata_path).expect("failed to run the kata")
+            let child = if let Some(command) = &command {
+                run_custom_command(command, curday_kata_path)
             } else {
-                run_using_makefile(curday_kata_path).expect("failed to run the kata")
+                run_using_makefile(curday_kata_path)
             };
-            child.wait().expect("failed to wait on child");
+            if let Some(mut c) = child {
+                c.wait().expect("failed to wait on child process");
+            }
         }
     }
 

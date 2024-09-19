@@ -2,6 +2,7 @@ use crate::args::Args;
 use crate::files::global_config_file::GlobalConfigFile;
 use crate::files::local_config_file::LocalConfigFile;
 use crate::workspaces::Workspace;
+use crate::Kata;
 use std::path::PathBuf;
 
 pub const DEF_KATAS_DIR: &str = "katas";
@@ -11,25 +12,43 @@ pub const DEF_CONFIG_FILENAME: &str = "katac.json";
 pub struct Config {
     pub global_config_file: GlobalConfigFile,
     pub local_config_file: Option<LocalConfigFile>,
+    pub state: bool,
 }
 
 impl Config {
     pub fn new(args: &Args) -> Self {
         let local_config_file = LocalConfigFile::new(args);
+        let state = args.state == "true";
+
+        if !state {
+            return Self {
+                local_config_file,
+                global_config_file: GlobalConfigFile::default(),
+                state,
+            };
+        }
+
         let global_config_file = GlobalConfigFile::new().unwrap_or_default();
         Self {
             local_config_file,
             global_config_file,
+            state,
         }
     }
 }
 
 impl Config {
     pub fn is_new_workspace(&self, name: &str) -> bool {
+        if !self.state {
+            return true;
+        }
         !self.global_config_file.contains_workspace(name)
     }
 
     pub fn add_workspace(&mut self, workspace: &Workspace) {
+        if !self.state {
+            return;
+        }
         self.global_config_file.add_workspace(workspace);
     }
 
@@ -38,20 +57,34 @@ impl Config {
     }
 
     pub fn remove_workspace(&mut self, name: &str) {
+        if !self.state {
+            return;
+        }
         self.global_config_file.remove_workspace(name);
     }
 
     pub fn find_workspace(&self, name: &str) -> Option<Workspace> {
+        if !self.state {
+            return None;
+        }
         self.global_config_file.find_workspace(name)
     }
 
     pub fn update(&self) {
+        if !self.state {
+            return;
+        }
         self.global_config_file
             .update()
             .expect("Unable to update global config file");
     }
 
     pub fn update_cfg_if_given_args(&mut self, args: &Args, workspace: &mut Workspace) {
+        if !self.state {
+            return;
+        }
+
+        // TODO: also if given env variable, need to change this
         let mut changed = false;
         if let Some(katas_dir) = &args.katas_dir {
             workspace.katas_dir = PathBuf::from(katas_dir);
@@ -66,6 +99,13 @@ impl Config {
         if changed {
             self.global_config_file.update_workspace(workspace);
         }
+    }
+
+    pub fn all_katas(&self, ws: &Workspace) -> Vec<Kata> {
+        if !self.state {
+            return ws.get_katas();
+        }
+        self.global_config_file.all_katas()
     }
 }
 

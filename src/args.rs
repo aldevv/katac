@@ -16,6 +16,10 @@ pub struct Args {
     #[arg(required = false, short, long)]
     pub config_file: Option<String>,
 
+    /// state, keep track of workspaces and katas, defaults to true
+    #[arg(short, long, default_value = "true")]
+    pub state: String,
+
     /// Katas you want to do today
     #[arg(required = false, num_args=1..)]
     pub kata_names_args: Option<Vec<String>>,
