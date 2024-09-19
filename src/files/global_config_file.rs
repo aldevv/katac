@@ -31,7 +31,7 @@ impl GlobalConfigFile {
                 let mut global_config: GlobalConfigFile = match serde_json::from_str(&str) {
                     Ok(g) => g,
                     Err(e) => {
-                        info!("Error: {:?}", e);
+                        eprintln!("Error reading global config file: {}", e);
                         GlobalConfigFile::default()
                     }
                 };
@@ -91,6 +91,13 @@ impl GlobalConfigFile {
             .clone()
             .into_iter()
             .find(|ws| ws.name == name)
+    }
+
+    pub fn update_workspace(&mut self, ws: &Workspace) {
+        if let Some(workspace) = self.workspaces.iter_mut().find(|w| w.name == ws.name) {
+            *workspace = ws.clone();
+            self.update().expect("Unable to update config file");
+        }
     }
 
     pub fn contains_workspace(&self, name: &str) -> bool {

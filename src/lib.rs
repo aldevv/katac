@@ -44,10 +44,14 @@ pub struct Katac {
 
 impl Katac {
     pub fn new(args: &Args) -> Self {
-        let workspace = Workspace::new(args);
         let mut cfg = Config::new(args);
+
+        let mut workspace = Workspace::new(args);
         if cfg.is_new_workspace(&workspace.name) {
             cfg.add_workspace(&workspace);
+        } else {
+            workspace = cfg.find_workspace(&workspace.name).unwrap();
+            cfg.update_cfg_if_given_args(args, &mut workspace);
         }
 
         let all_katas = cfg.global_config_file.all_katas();
@@ -218,12 +222,11 @@ impl Katac {
             path.file_name().unwrap().to_str().unwrap().to_string()
         };
 
-        let workspace = Workspace::new_with(&self.args, &name, path);
-        self.cfg.add_workspace(&workspace);
-
+        let mut workspace = Workspace::new_with(&self.args, &name, path);
         if let Some(remote) = remote {
             workspace.clone_from_remote(&remote);
         }
+        self.cfg.add_workspace(&workspace);
     }
 
     pub fn list_workspaces(&self) {

@@ -25,8 +25,8 @@ impl Config {
 }
 
 impl Config {
-    pub fn is_new_workspace(&self, workspace: &str) -> bool {
-        !self.global_config_file.contains_workspace(workspace)
+    pub fn is_new_workspace(&self, name: &str) -> bool {
+        !self.global_config_file.contains_workspace(name)
     }
 
     pub fn add_workspace(&mut self, workspace: &Workspace) {
@@ -43,6 +43,29 @@ impl Config {
 
     pub fn find_workspace(&self, name: &str) -> Option<Workspace> {
         self.global_config_file.find_workspace(name)
+    }
+
+    pub fn update(&self) {
+        self.global_config_file
+            .update()
+            .expect("Unable to update global config file");
+    }
+
+    pub fn update_cfg_if_given_args(&mut self, args: &Args, workspace: &mut Workspace) {
+        let mut changed = false;
+        if let Some(katas_dir) = &args.katas_dir {
+            workspace.katas_dir = PathBuf::from(katas_dir);
+            changed = true;
+        }
+
+        if let Some(days_dir) = &args.days_dir {
+            workspace.days_dir = PathBuf::from(days_dir);
+            changed = true;
+        }
+
+        if changed {
+            self.global_config_file.update_workspace(workspace);
+        }
     }
 }
 

@@ -17,8 +17,8 @@ pub struct Workspace {
     pub name: String,
     /// workspace fullpath
     pub path: PathBuf,
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub remote: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote: Option<String>,
     pub author: String,
     pub katas_dir: PathBuf,
     pub days_dir: PathBuf,
@@ -28,21 +28,18 @@ pub struct Workspace {
 impl Workspace {
     pub fn new(args: &Args) -> Self {
         let path = std::env::current_dir().expect("Unable to get current dir");
-        let name = path
-            .file_name()
-            .expect("Unable to get current dir name")
-            .to_str()
-            .expect("Unable to convert to string")
-            .to_string();
+        let name = workspace_name(path.clone());
+        // if arg not given, and env var not set, use default, UNLESS the workspace exists in
+        // global config file
         let katas_dir = katas_dir(args);
         let days_dir = days_dir(args);
-        let remote = "";
+        let remote = None;
         let author = std::env::var("USER").unwrap_or_else(|_| "unknown".to_string());
 
         let mut ws = Self {
             name,
             path,
-            remote: remote.to_string(),
+            remote,
             author,
             katas_dir,
             days_dir,
@@ -55,13 +52,13 @@ impl Workspace {
     pub fn new_with(args: &Args, name: &str, path: PathBuf) -> Self {
         let katas_dir = katas_dir(args);
         let days_dir = days_dir(args);
-        let remote = "";
+        let remote = None;
         let author = std::env::var("USER").unwrap_or_else(|_| "unknown".to_string());
 
         let mut ws = Self {
             name: name.to_string(),
             path,
-            remote: remote.to_string(),
+            remote,
             author,
             katas_dir,
             days_dir,
@@ -114,7 +111,7 @@ impl Workspace {
         kata
     }
 
-    pub fn clone_from_remote(&self, remote: &str) {
+    pub fn clone_from_remote(&mut self, remote: &str) {
         println!("Cloning from remote: {}", remote);
         let output = std::process::Command::new("git")
             .arg("clone")
@@ -127,6 +124,8 @@ impl Workspace {
             println!("Error: {}", String::from_utf8_lossy(&output.stderr));
             std::process::exit(1);
         }
+
+        self.remote = Some(remote.to_string());
     }
 
     pub fn curday(&self) -> u32 {
@@ -185,6 +184,14 @@ pub fn katas_dir(args: &Args) -> PathBuf {
     );
     fs::create_dir_all(&katas_dir).expect("Unable to create katas_dir folder");
     katas_dir
+}
+
+pub fn workspace_name(path: PathBuf) -> String {
+    path.file_name()
+        .expect("Unable to get current dir name")
+        .to_str()
+        .expect("Unable to convert to string")
+        .to_string()
 }
 
 /// priorities are:

@@ -29,10 +29,12 @@ impl LocalConfigFile {
         };
 
         if !path.exists() {
-            eprintln!(
-                "given config file \"{}\" does not exist. Ignoring...",
-                path.display()
-            );
+            if args.config_file.is_some() {
+                eprintln!(
+                    "given config file \"{}\" does not exist. Ignoring...",
+                    args.config_file.clone().unwrap()
+                );
+            }
             return None;
         }
 
