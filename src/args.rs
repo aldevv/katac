@@ -18,8 +18,8 @@ pub struct Args {
 
     //TODO: change it to no-state so it's jsut a boolean
     /// state, keep track of workspaces and katas, defaults to true
-    #[arg(short, long, default_value = "true")]
-    pub state: String,
+    #[arg(short, long, default_value_t = false)]
+    pub no_state: bool,
 
     /// show katas from all saved workspaces
     #[arg(short, long)]

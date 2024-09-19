@@ -18,17 +18,14 @@ pub struct Config {
 impl Config {
     pub fn new(args: &Args) -> Self {
         let local_config_file = LocalConfigFile::new(args);
-        let state = args.state == "true";
+        let state = new_state(args);
 
-        if !state {
-            return Self {
-                local_config_file,
-                global_config_file: GlobalConfigFile::default(),
-                state,
-            };
-        }
+        let global_config_file = if state {
+            GlobalConfigFile::new().unwrap_or_default()
+        } else {
+            GlobalConfigFile::default()
+        };
 
-        let global_config_file = GlobalConfigFile::new().unwrap_or_default();
         Self {
             local_config_file,
             global_config_file,
@@ -154,4 +151,18 @@ pub fn local_config_path(args: &Args) -> PathBuf {
 
 pub fn global_config_path() -> PathBuf {
     PathBuf::from(share_dir() + "/" + DEF_CONFIG_FILENAME)
+}
+
+/// create the state bool which will be used to determine if the global config file
+/// should be used or not
+pub fn new_state(args: &Args) -> bool {
+    if args.no_state {
+        return false;
+    };
+
+    if std::env::var("KATAC_NO_STATE").is_ok() {
+        return false;
+    };
+
+    true
 }

@@ -56,15 +56,17 @@ fn test_run_kata() -> TestResult {
         day_folder: format!("{}_run", DAY_FOLDER),
     };
     Command::cargo_bin(PRG)?
-        .args(["--state", "false", "baz"])
+        .args(["baz"])
         .env("KATAS_DIR", "tests/example_katas")
         .env("DAYS_DIR", &t.day_folder)
+        .env("KATAC_NO_STATE", "true")
         .assert()
         .stdout("Copying baz to day1...\n");
 
     Command::cargo_bin(PRG)?
-        .args(["--state", "false", "run", "baz"])
+        .args(["run", "baz"])
         .env("DAYS_DIR", &t.day_folder)
+        .env("KATAC_NO_STATE", "true")
         .assert()
         .stdout(
             r#"
@@ -84,8 +86,6 @@ fn test_multiple_kata() -> TestResult {
     };
     Command::cargo_bin(PRG)?
         .args([
-            "--state",
-            "false",
             "--days-dir",
             &t.day_folder,
             "--katas-dir",
@@ -94,6 +94,7 @@ fn test_multiple_kata() -> TestResult {
             "bar",
             "baz",
         ])
+        .env("KATAC_NO_STATE", "true")
         .assert()
         .stdout("Copying foo to day1...\nCopying bar to day1...\nCopying baz to day1...\n");
     Ok(())
@@ -123,8 +124,6 @@ fn test_random_with_config_file() -> TestResult {
     for _ in 0..5 {
         Command::cargo_bin(PRG)?
             .args([
-                "--state",
-                "false",
                 "--days-dir",
                 &t.day_folder,
                 "--katas-dir",
@@ -134,6 +133,7 @@ fn test_random_with_config_file() -> TestResult {
                 "random",
                 "2",
             ])
+            .env("KATAC_NO_STATE", "true")
             .assert()
             .code(0);
 
@@ -161,8 +161,6 @@ fn test_random_no_config_file() -> TestResult {
     for _ in 0..5 {
         Command::cargo_bin(PRG)?
             .args([
-                "--state",
-                "false",
                 "--days-dir",
                 &t.day_folder,
                 "--katas-dir",
@@ -172,6 +170,7 @@ fn test_random_no_config_file() -> TestResult {
                 "random",
                 "2",
             ])
+            .env("KATAC_NO_STATE", "true")
             .assert()
             .code(0);
 
@@ -194,9 +193,10 @@ fn test_run_kata_no_makefile() -> TestResult {
         day_folder: format!("{}_run_no_makefile", DAY_FOLDER),
     };
     Command::cargo_bin(PRG)?
-        .args(["--state", "false", "foo"])
+        .args(["foo"])
         .env("KATAS_DIR", "tests/example_katas")
         .env("DAYS_DIR", &t.day_folder)
+        .env("KATAC_NO_STATE", "true")
         .assert()
         .stdout("Copying foo to day1...\n");
 
@@ -205,8 +205,9 @@ fn test_run_kata_no_makefile() -> TestResult {
     std::fs::remove_file(day1.join("foo").join("Makefile")).unwrap();
 
     Command::cargo_bin(PRG)?
-        .args(["--state", "false", "run", "foo"])
+        .args(["run", "foo"])
         .env("DAYS_DIR", &t.day_folder)
+        .env("KATAC_NO_STATE", "true")
         .assert()
         .stdout(
             r#"
@@ -225,9 +226,10 @@ fn test_run_all() -> TestResult {
         day_folder: format!("{}_run_all", DAY_FOLDER),
     };
     let cmd = Command::cargo_bin(PRG)?
-        .args(["--state", "false", "foo", "bar", "baz"])
+        .args(["foo", "bar", "baz"])
         .env("KATAS_DIR", "tests/example_katas")
         .env("DAYS_DIR", &t.day_folder)
+        .env("KATAC_NO_STATE", "true")
         .assert();
 
     let copy_output = String::from_utf8(cmd.get_output().stdout.clone())?;
@@ -237,8 +239,9 @@ fn test_run_all() -> TestResult {
     }
 
     let cmd = Command::cargo_bin(PRG)?
-        .args(["--state", "false", "run"])
+        .args(["run"])
         .env("DAYS_DIR", &t.day_folder)
+        .env("KATAC_NO_STATE", "true")
         .assert();
     let run_output = String::from_utf8(cmd.get_output().stdout.clone())?;
     println!("run_output: {}", run_output);
@@ -264,8 +267,9 @@ fn test_add_kata() -> TestResult {
         day_folder: "".to_string(),
     };
     Command::cargo_bin(PRG)?
-        .args(["--state", "false", "add", "foo2"])
+        .args(["add", "foo2"])
         .env("KATAS_DIR", &t.katas_dir)
+        .env("KATAC_NO_STATE", "true")
         .assert()
         .stdout("foo2 created in tests/new_katas.\n");
     Ok(())
