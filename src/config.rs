@@ -67,7 +67,6 @@ impl Config {
                 return false;
             }
         }
-        println!("returned true");
         true
 
         // !self.global_config_file.has_workspace(&workspace.name)

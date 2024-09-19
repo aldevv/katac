@@ -104,7 +104,11 @@ impl Workspace {
             std::process::exit(1);
         }
         fs::create_dir_all(&kata_path).expect("Unable to create kata folder");
-        println!("{} created in {}.", kata_name, dirname(&kata_path));
+        println!(
+            "{} created in {}.",
+            kata_name,
+            dirname(&self.name, &kata_path)
+        );
         let kata = Kata {
             name: kata_name.to_string(),
             path: kata_path,
@@ -246,7 +250,23 @@ pub fn get_kata_path(kata_name: &str, katas_dir: PathBuf) -> PathBuf {
     PathBuf::from(format!("{}/{}", katas_dir.display(), kata_name))
 }
 
+pub fn workspace_relative_path(workspace_name: &str, path: PathBuf) -> PathBuf {
+    let prefix = path
+        .components()
+        .position(|c| c.as_os_str() == workspace_name)
+        .expect("Unable to find workspace name in kata dir");
+
+    path.iter().skip(prefix + 1).collect::<PathBuf>()
+}
+
 /// returns the dirname of a path
-fn dirname(path: &Path) -> String {
-    path.parent().unwrap().to_str().unwrap().to_string()
+fn dirname(workspace_name: &str, kata_dir: &Path) -> String {
+    // find workspace_name in kata_dir and strip_prefix from there
+    let kata_dir_relative = workspace_relative_path(workspace_name, kata_dir.to_path_buf());
+    kata_dir_relative
+        .parent()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string()
 }

@@ -58,7 +58,10 @@ pub fn run_make_command(mut path: PathBuf) -> Option<std::process::Child> {
 
     path.push("Makefile");
     if !path.exists() {
-        println!("No Makefile found in {}", path_str);
+        println!(
+            "No Makefile found in {}",
+            days_relative_path(path).parent().unwrap().display()
+        );
         return None;
     }
 
@@ -149,4 +152,22 @@ pub fn make_is_installed() -> bool {
         .stdout(std::process::Stdio::null())
         .status()
         .is_ok()
+}
+
+fn days_relative_path(path: PathBuf) -> PathBuf {
+    // find day prefix position in the given path
+    let day_prefix_pos = path
+        .components()
+        .position(|c| {
+            c.as_os_str()
+                .to_string_lossy()
+                .to_string()
+                .starts_with("day")
+        })
+        .unwrap();
+
+    // get the relative path from the day prefix
+    path.components()
+        .skip(day_prefix_pos - 1)
+        .collect::<PathBuf>()
 }
