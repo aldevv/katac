@@ -42,9 +42,6 @@ pub struct Katac {
     pub all_katas: Vec<Kata>,
 }
 
-// TODO: go to parent folder until name matches a workspace, then compare the paths, otherwise
-// create new workspace
-
 impl Katac {
     pub fn new(args: &Args) -> Self {
         let mut cfg = Config::new(args);
@@ -160,7 +157,13 @@ impl Katac {
 
         for (i, kata_name) in kata_names.iter().enumerate() {
             let curday_kata_path = self.workspace.curday_kata_path(kata_name);
-            let run_str = format!("\n> Running {} [{}/{}]", kata_name, i + 1, kata_names.len());
+            let run_str = format!(
+                "\n> Day {} | Running {} [{}/{}]",
+                self.workspace.curday(),
+                kata_name,
+                i + 1,
+                kata_names.len()
+            );
             println!("{}\n{}", run_str, "-".repeat(run_str.len()));
 
             let child = if let Some(command) = &command {

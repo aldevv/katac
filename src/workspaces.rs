@@ -71,8 +71,9 @@ impl Workspace {
 
     pub fn get_katas(&self) -> Vec<Kata> {
         if !self.katas_dir.exists() {
-            fs::create_dir_all(&self.katas_dir).expect("Unable to create katas folder");
+            return vec![];
         }
+
         fs::read_dir(self.katas_dir.clone())
             .map_err(|e| {
                 println!("Unable to read katas folder: {}", e);

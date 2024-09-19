@@ -68,8 +68,8 @@ fn test_run_kata() -> TestResult {
         .assert()
         .stdout(
             r#"
-> Running baz [1/1]
---------------------
+> Day 1 | Running baz [1/1]
+----------------------------
 console.log("hello world");
 "#,
         );
@@ -210,8 +210,8 @@ fn test_run_kata_no_makefile() -> TestResult {
         .assert()
         .stdout(
             r#"
-> Running foo [1/1]
---------------------
+> Day 1 | Running foo [1/1]
+----------------------------
 No Makefile found in tests/day_test_run_no_makefile/day1/foo
 "#,
         );
@@ -243,7 +243,7 @@ fn test_run_all() -> TestResult {
     let run_output = String::from_utf8(cmd.get_output().stdout.clone())?;
     println!("run_output: {}", run_output);
     for s in ["foo", "bar", "baz"].iter() {
-        assert!(run_output.contains(&format!("> Running {}", s)));
+        assert!(run_output.contains(&format!("Running {}", s)));
         match s {
             &"foo" | &"bar" => {
                 assert!(run_output.contains("TODO: add your run command here"));
