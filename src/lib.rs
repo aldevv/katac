@@ -44,6 +44,8 @@ pub struct Katac {
 
 impl Katac {
     pub fn new(args: &Args) -> Self {
+        // TODO: only create the kata and days folder IF they don't exist AND
+        // the workspace is not in global file
         let mut cfg = Config::new(args);
         let mut workspace = Workspace::new(args);
         if cfg.is_new_workspace(&workspace.name) {

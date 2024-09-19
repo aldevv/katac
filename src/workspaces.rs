@@ -170,22 +170,6 @@ impl Workspace {
     }
 }
 
-/// priorities are:
-/// --katas-dir arg
-/// KATAS_DIR env var
-/// katas_dir config file property
-/// default value
-pub fn katas_dir(args: &Args) -> PathBuf {
-    let katas_dir = PathBuf::from(
-        args.katas_dir
-            .clone()
-            .or_else(|| std::env::var("KATAS_DIR").ok())
-            .unwrap_or_else(|| DEF_KATAS_DIR.to_string()),
-    );
-    fs::create_dir_all(&katas_dir).expect("Unable to create katas_dir folder");
-    katas_dir
-}
-
 pub fn workspace_name(path: PathBuf) -> String {
     path.file_name()
         .expect("Unable to get current dir name")
@@ -193,6 +177,9 @@ pub fn workspace_name(path: PathBuf) -> String {
         .expect("Unable to convert to string")
         .to_string()
 }
+
+// TODO: only create the kata and days folder IF they don't exist AND
+// the workspace is not in global file
 
 /// priorities are:
 /// --days-dir arg
@@ -208,6 +195,22 @@ pub fn days_dir(args: &Args) -> PathBuf {
     );
     fs::create_dir_all(&days_dir).expect("Unable to create days_dir folder");
     days_dir
+}
+
+/// priorities are:
+/// --katas-dir arg
+/// KATAS_DIR env var
+/// katas_dir config file property
+/// default value
+pub fn katas_dir(args: &Args) -> PathBuf {
+    let katas_dir = PathBuf::from(
+        args.katas_dir
+            .clone()
+            .or_else(|| std::env::var("KATAS_DIR").ok())
+            .unwrap_or_else(|| DEF_KATAS_DIR.to_string()),
+    );
+    fs::create_dir_all(&katas_dir).expect("Unable to create katas_dir folder");
+    katas_dir
 }
 
 /// returns the path of the kata in the katas folder
