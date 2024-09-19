@@ -38,11 +38,39 @@ impl Config {
 }
 
 impl Config {
-    pub fn is_new_workspace(&self, name: &str) -> bool {
+    pub fn is_new_workspace(&self, workspace: &mut Workspace) -> bool {
         if !self.state {
             return true;
         }
-        !self.global_config_file.contains_workspace(name)
+        // iterate every parent in the path
+        // if any of them is a workspace, return false
+        for parent in workspace.path.iter().rev() {
+            if self
+                .global_config_file
+                .has_workspace(parent.to_str().unwrap())
+            {
+                if let Some(ws) = self
+                    .global_config_file
+                    .find_workspace(parent.to_str().unwrap())
+                {
+                    if workspace.path.starts_with(&ws.path) {
+                        workspace.name = ws.name.clone();
+                        return false;
+                    } else {
+                        eprintln!(
+                            "The workspace {} already exists with a different path: {}",
+                            parent.to_str().unwrap(),
+                            ws.path.to_str().unwrap()
+                        );
+                    }
+                }
+                return false;
+            }
+        }
+        println!("returned true");
+        true
+
+        // !self.global_config_file.has_workspace(&workspace.name)
     }
 
     pub fn add_workspace(&mut self, workspace: &Workspace) {

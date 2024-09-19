@@ -1,6 +1,7 @@
+use path_clean::PathClean;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
@@ -69,6 +70,9 @@ impl Workspace {
     }
 
     pub fn get_katas(&self) -> Vec<Kata> {
+        if !self.katas_dir.exists() {
+            fs::create_dir_all(&self.katas_dir).expect("Unable to create katas folder");
+        }
         fs::read_dir(self.katas_dir.clone())
             .map_err(|e| {
                 println!("Unable to read katas folder: {}", e);
@@ -129,6 +133,9 @@ impl Workspace {
     }
 
     pub fn curday(&self) -> u32 {
+        if !self.days_dir.exists() {
+            fs::create_dir_all(&self.days_dir).expect("Unable to create days folder");
+        }
         match fs::read_dir(self.days_dir.clone()) {
             Err(_) => 0,
             Ok(dir) => dir
@@ -162,6 +169,11 @@ impl Workspace {
 
     /// returns a vector of katas from the current day folder
     pub fn curday_katas(&self) -> Vec<String> {
+        let curday_path = self.curday_path();
+        if !curday_path.exists() {
+            eprintln!("no day has been created for the {} workspace", self.name);
+            std::process::exit(1);
+        }
         fs::read_dir(self.curday_path())
             .expect("Unable to read current day contents")
             .filter_map(|e| e.ok())
@@ -187,14 +199,21 @@ pub fn workspace_name(path: PathBuf) -> String {
 /// days_dir config file property
 /// default value
 pub fn days_dir(args: &Args) -> PathBuf {
-    let days_dir = PathBuf::from(
+    let path = PathBuf::from(
         args.days_dir
             .clone()
             .or_else(|| std::env::var("DAYS_DIR").ok())
             .unwrap_or_else(|| DEF_DAYS_DIR.to_string()),
     );
-    fs::create_dir_all(&days_dir).expect("Unable to create days_dir folder");
-    days_dir
+
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        env::current_dir()
+            .expect("Unable to get current dir")
+            .join(path)
+    }
+    .clean()
 }
 
 /// priorities are:
@@ -203,14 +222,20 @@ pub fn days_dir(args: &Args) -> PathBuf {
 /// katas_dir config file property
 /// default value
 pub fn katas_dir(args: &Args) -> PathBuf {
-    let katas_dir = PathBuf::from(
+    let path = PathBuf::from(
         args.katas_dir
             .clone()
             .or_else(|| std::env::var("KATAS_DIR").ok())
             .unwrap_or_else(|| DEF_KATAS_DIR.to_string()),
     );
-    fs::create_dir_all(&katas_dir).expect("Unable to create katas_dir folder");
-    katas_dir
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        env::current_dir()
+            .expect("Unable to get current dir")
+            .join(path)
+    }
+    .clean()
 }
 
 /// returns the path of the kata in the katas folder

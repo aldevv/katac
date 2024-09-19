@@ -42,13 +42,14 @@ pub struct Katac {
     pub all_katas: Vec<Kata>,
 }
 
+// TODO: go to parent folder until name matches a workspace, then compare the paths, otherwise
+// create new workspace
+
 impl Katac {
     pub fn new(args: &Args) -> Self {
-        // TODO: only create the kata and days folder IF they don't exist AND
-        // the workspace is not in global file
         let mut cfg = Config::new(args);
         let mut workspace = Workspace::new(args);
-        if cfg.is_new_workspace(&workspace.name) {
+        if cfg.is_new_workspace(&mut workspace) {
             cfg.add_workspace(&workspace);
         } else {
             workspace = cfg.find_workspace(&workspace.name).unwrap();

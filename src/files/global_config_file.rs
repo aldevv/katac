@@ -62,7 +62,7 @@ impl GlobalConfigFile {
 
     pub fn add_workspace(&mut self, ws: &Workspace) {
         // check if the workspace already exists
-        if self.contains_workspace(&ws.name) {
+        if self.has_workspace(&ws.name) {
             println!("Workspace already exists");
             process::exit(1);
         }
@@ -100,7 +100,7 @@ impl GlobalConfigFile {
         }
     }
 
-    pub fn contains_workspace(&self, name: &str) -> bool {
+    pub fn has_workspace(&self, name: &str) -> bool {
         self.workspaces.clone().iter().any(|ws| ws.name == name)
     }
 
