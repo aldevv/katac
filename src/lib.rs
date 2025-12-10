@@ -796,9 +796,10 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
             let temp_path = PathBuf::from(&katas_path).join(&temp_name);
 
             if let Err(e) = fs::create_dir_all(&temp_path) {
-                Err(std::io::Error::other(
-                    format!("Failed to create temp directory: {}", e),
-                ))
+                Err(std::io::Error::other(format!(
+                    "Failed to create temp directory: {}",
+                    e
+                )))
             } else {
                 match fs_extra::copy_items(&[&src], &temp_path, &CopyOptions::new()) {
                     Ok(_) => {
@@ -809,9 +810,7 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
                     }
                     Err(e) => {
                         let _ = fs::remove_dir_all(&temp_path);
-                        Err(std::io::Error::other(
-                            e.to_string(),
-                        ))
+                        Err(std::io::Error::other(e.to_string()))
                     }
                 }
             }
@@ -1090,9 +1089,7 @@ fn download_file(url: &str, dest: &Path) -> std::io::Result<()> {
         .output()?;
 
     if !output.status.success() {
-        return Err(std::io::Error::other(
-            "Download failed",
-        ));
+        return Err(std::io::Error::other("Download failed"));
     }
 
     Ok(())
@@ -1108,9 +1105,7 @@ fn extract_archive(archive: &Path, dest: &Path, ext: &str) -> std::io::Result<()
             .output()?;
 
         if !output.status.success() {
-            return Err(std::io::Error::other(
-                "Extraction failed",
-            ));
+            return Err(std::io::Error::other("Extraction failed"));
         }
     } else {
         let output = Command::new("tar")
@@ -1121,9 +1116,7 @@ fn extract_archive(archive: &Path, dest: &Path, ext: &str) -> std::io::Result<()
             .output()?;
 
         if !output.status.success() {
-            return Err(std::io::Error::other(
-                "Extraction failed",
-            ));
+            return Err(std::io::Error::other("Extraction failed"));
         }
     }
 
