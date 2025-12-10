@@ -1137,11 +1137,19 @@ pub fn upgrade_katac(force: bool) {
     {
         use std::os::unix::fs::PermissionsExt;
 
-        // Set executable permissions
+        // Set executable permissions on the new binary
         if let Ok(metadata) = fs::metadata(&new_binary) {
             let mut perms = metadata.permissions();
             perms.set_mode(0o755);
             let _ = fs::set_permissions(&new_binary, perms);
+        }
+
+        // On Unix, we need to remove the old binary first to avoid "Text file busy" error
+        // The running process can continue executing from the deleted inode
+        if let Err(e) = fs::remove_file(&current_exe) {
+            eprintln!("Error: Failed to remove old binary: {}", e);
+            let _ = fs::remove_dir_all(&extract_dir);
+            std::process::exit(1);
         }
 
         if let Err(e) = fs::copy(&new_binary, &current_exe) {
