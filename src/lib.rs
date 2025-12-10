@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use dialoguer::MultiSelect;
 use fs_extra::dir::CopyOptions;
+use include_dir::{include_dir, Dir};
 use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::Deserialize;
@@ -13,6 +14,9 @@ use std::process::Command;
 const KATAS_DIR: &str = "katas";
 const DAYS_DIR: &str = "days";
 const CONFIG_FILE_NAME: &str = "katac.toml";
+
+// Embed the example-katas directory at compile time
+static EXAMPLE_KATAS: Dir = include_dir!("$CARGO_MANIFEST_DIR/example-katas");
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None, arg_required_else_help(true))]
@@ -65,15 +69,22 @@ pub enum Subcommands {
         kata_name: String,
     },
 
-    /// Initialize katas by selecting from example templates
+    /// Initialize katas by selecting from example templates (uses embedded katas by default)
     Init {
-        /// Optional path to examples directory (default: ./example-katas)
+        /// Optional path to external examples directory (default: uses embedded katas)
         #[arg(long)]
         examples_dir: Option<String>,
 
         /// Select katas without interactive prompt (for testing/automation)
         #[arg(long, hide = true)]
         select: Option<String>,
+    },
+
+    /// Upgrade katac to the latest version
+    Upgrade {
+        /// Force reinstallation even if already on latest version
+        #[arg(short, long)]
+        force: bool,
     },
 }
 
@@ -524,8 +535,47 @@ fn read_random_katas_from_config_file(config_file: String) -> Vec<String> {
     kata_names
 }
 
-/// scans the examples directory and returns a list of (language, kata_name) tuples
-fn scan_example_katas(examples_dir: &str) -> Vec<(String, String)> {
+/// scans the embedded example katas and returns a list of (language, kata_name) tuples
+fn scan_embedded_katas() -> Vec<(String, String)> {
+    let mut katas = Vec::new();
+
+    // Iterate through language directories in embedded katas
+    for language_dir in EXAMPLE_KATAS.dirs() {
+        let language = language_dir
+            .path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_string();
+
+        // Iterate through kata directories within each language
+        for kata_dir in language_dir.dirs() {
+            let kata_name = kata_dir
+                .path()
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+
+            if !kata_name.is_empty() && !language.is_empty() {
+                katas.push((language.clone(), kata_name));
+            }
+        }
+    }
+
+    katas.sort_by(|a, b| {
+        // Sort by kata name first, then by language
+        match a.1.cmp(&b.1) {
+            std::cmp::Ordering::Equal => a.0.cmp(&b.0),
+            other => other,
+        }
+    });
+
+    katas
+}
+
+/// scans an external examples directory and returns a list of (language, kata_name) tuples
+fn scan_external_katas(examples_dir: &str) -> Vec<(String, String)> {
     let mut katas = Vec::new();
 
     let examples_path = Path::new(examples_dir);
@@ -583,18 +633,71 @@ fn scan_example_katas(examples_dir: &str) -> Vec<(String, String)> {
     katas
 }
 
+/// copies an embedded kata directory to the destination
+fn copy_embedded_kata(language: &str, kata_name: &str, dest: &Path) -> std::io::Result<()> {
+    // Get the embedded kata directory
+    let kata_path_str = format!("{}/{}", language, kata_name);
+    let kata_dir = EXAMPLE_KATAS.get_dir(&kata_path_str).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("Embedded kata not found: {}", kata_path_str),
+        )
+    })?;
+
+    // Recursively copy all files from the embedded directory
+    fn copy_dir_recursive(dir: &include_dir::Dir, dest: &Path) -> std::io::Result<()> {
+        // Create destination directory
+        fs::create_dir_all(dest)?;
+
+        // Copy all files in this directory
+        for file in dir.files() {
+            let file_path = dest.join(file.path().file_name().unwrap());
+            fs::write(&file_path, file.contents())?;
+
+            // Set executable permissions for run.sh files
+            #[cfg(unix)]
+            if file_path.file_name().and_then(|n| n.to_str()) == Some("run.sh") {
+                use std::os::unix::prelude::PermissionsExt;
+                fs::set_permissions(&file_path, fs::Permissions::from_mode(0o755))?;
+            }
+        }
+
+        // Recursively copy subdirectories
+        for subdir in dir.dirs() {
+            let subdir_name = subdir.path().file_name().unwrap();
+            let subdir_dest = dest.join(subdir_name);
+            copy_dir_recursive(subdir, &subdir_dest)?;
+        }
+
+        Ok(())
+    }
+
+    copy_dir_recursive(kata_dir, dest)
+}
+
 /// initializes katas by selecting from example templates
 pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &Option<String>) {
-    const DEFAULT_EXAMPLES_DIR: &str = "example-katas";
-
-    let examples_path = examples_dir.as_deref().unwrap_or(DEFAULT_EXAMPLES_DIR);
     let katas_path = katas_dir(args);
 
+    // Determine whether to use embedded or external katas
+    let use_embedded = examples_dir.is_none();
+
     // Scan for available example katas
-    let available_katas = scan_example_katas(examples_path);
+    let available_katas = if use_embedded {
+        scan_embedded_katas()
+    } else {
+        scan_external_katas(examples_dir.as_ref().unwrap())
+    };
 
     if available_katas.is_empty() {
-        eprintln!("Error: No example katas found in '{}'", examples_path);
+        if use_embedded {
+            eprintln!("Error: No embedded example katas found");
+        } else {
+            eprintln!(
+                "Error: No example katas found in '{}'",
+                examples_dir.as_ref().unwrap()
+            );
+        }
         std::process::exit(1);
     }
 
@@ -653,7 +756,6 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
 
     for &idx in &selections {
         let (language, kata_name) = &available_katas[idx];
-        let src = PathBuf::from(examples_path).join(language).join(kata_name);
 
         // Determine final destination name
         let final_dest_name = if seen_names.contains(kata_name) {
@@ -681,41 +783,44 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
             );
         }
 
-        // Copy to a temporary unique name first to avoid conflicts during copy
-        let temp_name = format!(".tmp_{}_{}", language, kata_name);
-        let temp_path = PathBuf::from(&katas_path).join(&temp_name);
+        // Copy from embedded or external source
+        let copy_result = if use_embedded {
+            copy_embedded_kata(language, kata_name, &final_dest)
+        } else {
+            let src = PathBuf::from(examples_dir.as_ref().unwrap())
+                .join(language)
+                .join(kata_name);
 
-        // Create a temporary subdirectory to copy into
-        if let Err(e) = fs::create_dir_all(&temp_path) {
-            eprintln!(
-                "Error creating temp directory for [{}] {}: {}",
-                language, kata_name, e
-            );
-            errors.push(format!("[{}] {}", language, kata_name));
-            continue;
-        }
+            // For external, use the temp directory approach
+            let temp_name = format!(".tmp_{}_{}", language, kata_name);
+            let temp_path = PathBuf::from(&katas_path).join(&temp_name);
 
-        // Copy items into the temp directory
-        match fs_extra::copy_items(&[&src], &temp_path, &CopyOptions::new()) {
-            Ok(_) => {
-                // The copied directory is now at temp_path/kata_name
-                let copied_dir = temp_path.join(kata_name);
-
-                // Move to final destination
-                if let Err(e) = fs::rename(&copied_dir, &final_dest) {
-                    eprintln!(
-                        "Error moving [{}] {} to final destination: {}",
-                        language, kata_name, e
-                    );
-                    // Clean up temp directory
-                    let _ = fs::remove_dir_all(&temp_path);
-                    errors.push(format!("[{}] {}", language, kata_name));
-                    continue;
+            if let Err(e) = fs::create_dir_all(&temp_path) {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to create temp directory: {}", e),
+                ))
+            } else {
+                match fs_extra::copy_items(&[&src], &temp_path, &CopyOptions::new()) {
+                    Ok(_) => {
+                        let copied_dir = temp_path.join(kata_name);
+                        let result = fs::rename(&copied_dir, &final_dest);
+                        let _ = fs::remove_dir_all(&temp_path);
+                        result
+                    }
+                    Err(e) => {
+                        let _ = fs::remove_dir_all(&temp_path);
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            e.to_string(),
+                        ))
+                    }
                 }
+            }
+        };
 
-                // Clean up temp directory
-                let _ = fs::remove_dir_all(&temp_path);
-
+        match copy_result {
+            Ok(_) => {
                 println!(
                     "✓ Copied [{}] {} to {}/{}",
                     language, kata_name, katas_path, final_dest_name
@@ -725,7 +830,6 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
             }
             Err(e) => {
                 eprintln!("Error copying [{}] {}: {}", language, kata_name, e);
-                let _ = fs::remove_dir_all(&temp_path);
                 errors.push(format!("[{}] {}", language, kata_name));
             }
         }
@@ -737,4 +841,309 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
         eprintln!("\nFailed to copy {} kata(s)", errors.len());
         std::process::exit(1);
     }
+}
+
+/// upgrades katac to the latest version from GitHub releases
+pub fn upgrade_katac(force: bool) {
+    const REPO: &str = "aldevv/katac";
+    const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+    println!("Current version: {}", CURRENT_VERSION);
+    println!("Checking for updates...");
+
+    // Get latest version from GitHub
+    let latest_version = match get_latest_github_version(REPO) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error: Failed to check for updates: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    println!("Latest version: {}", latest_version);
+
+    // Compare versions
+    let current = CURRENT_VERSION.trim_start_matches('v');
+    let latest = latest_version.trim_start_matches('v');
+
+    if !force && current == latest {
+        println!("✓ Already on the latest version!");
+        return;
+    }
+
+    if !force && is_version_newer(latest, current) == Some(false) {
+        println!(
+            "✓ Your version ({}) is newer than or equal to the latest release ({})!",
+            current, latest
+        );
+        return;
+    }
+
+    println!("\nUpgrading from {} to {}...", current, latest);
+    println!("Downloading katac {}...", latest_version);
+
+    // Detect system
+    let (os, arch) = match detect_system() {
+        Ok(sys) => sys,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            eprintln!(
+                "Please install manually from: https://github.com/{}/releases",
+                REPO
+            );
+            std::process::exit(1);
+        }
+    };
+
+    let target = get_rust_target(&os, &arch);
+    let ext = if os == "windows" { "zip" } else { "tar.gz" };
+    let filename = format!("katac-{}.{}", target, ext);
+    let url = format!(
+        "https://github.com/{}/releases/download/{}/{}",
+        REPO, latest_version, filename
+    );
+
+    // Download to temp directory
+    let temp_dir = match std::env::temp_dir().to_str() {
+        Some(d) => PathBuf::from(d),
+        None => {
+            eprintln!("Error: Could not access temp directory");
+            std::process::exit(1);
+        }
+    };
+
+    let download_path = temp_dir.join(&filename);
+
+    println!("Downloading from: {}", url);
+    if let Err(e) = download_file(&url, &download_path) {
+        eprintln!("Error: Failed to download: {}", e);
+        std::process::exit(1);
+    }
+
+    // Extract
+    println!("Extracting...");
+    let extract_dir = temp_dir.join("katac_upgrade");
+    let _ = fs::remove_dir_all(&extract_dir);
+    if let Err(e) = fs::create_dir_all(&extract_dir) {
+        eprintln!("Error: Failed to create extraction directory: {}", e);
+        std::process::exit(1);
+    }
+
+    if let Err(e) = extract_archive(&download_path, &extract_dir, &ext) {
+        eprintln!("Error: Failed to extract: {}", e);
+        let _ = fs::remove_dir_all(&extract_dir);
+        std::process::exit(1);
+    }
+
+    // Find the binary
+    let binary_name = if os == "windows" {
+        "katac.exe"
+    } else {
+        "katac"
+    };
+    let new_binary = extract_dir.join(binary_name);
+
+    if !new_binary.exists() {
+        eprintln!("Error: Binary not found in archive");
+        let _ = fs::remove_dir_all(&extract_dir);
+        std::process::exit(1);
+    }
+
+    // Get current executable path
+    let current_exe = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(e) => {
+            eprintln!("Error: Could not determine current executable path: {}", e);
+            let _ = fs::remove_dir_all(&extract_dir);
+            std::process::exit(1);
+        }
+    };
+
+    // Replace the binary
+    println!("Installing to {}...", current_exe.display());
+
+    // On Windows, we can't replace a running exe, so we rename it first
+    #[cfg(target_os = "windows")]
+    {
+        let backup = current_exe.with_extension("exe.old");
+        let _ = fs::remove_file(&backup);
+        if let Err(e) = fs::rename(&current_exe, &backup) {
+            eprintln!("Error: Failed to backup current binary: {}", e);
+            let _ = fs::remove_dir_all(&extract_dir);
+            std::process::exit(1);
+        }
+
+        if let Err(e) = fs::copy(&new_binary, &current_exe) {
+            eprintln!("Error: Failed to install new binary: {}", e);
+            let _ = fs::rename(&backup, &current_exe);
+            let _ = fs::remove_dir_all(&extract_dir);
+            std::process::exit(1);
+        }
+
+        let _ = fs::remove_file(&backup);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        // Set executable permissions
+        if let Ok(metadata) = fs::metadata(&new_binary) {
+            let mut perms = metadata.permissions();
+            perms.set_mode(0o755);
+            let _ = fs::set_permissions(&new_binary, perms);
+        }
+
+        if let Err(e) = fs::copy(&new_binary, &current_exe) {
+            eprintln!("Error: Failed to install new binary: {}", e);
+            let _ = fs::remove_dir_all(&extract_dir);
+            std::process::exit(1);
+        }
+    }
+
+    // Cleanup
+    let _ = fs::remove_file(&download_path);
+    let _ = fs::remove_dir_all(&extract_dir);
+
+    println!("✓ Successfully upgraded to version {}!", latest);
+    println!("Run 'katac --version' to verify");
+}
+
+fn get_latest_github_version(repo: &str) -> Result<String, String> {
+    let url = format!("https://api.github.com/repos/{}/releases/latest", repo);
+    let output = Command::new("curl")
+        .args(["-fsSL", &url])
+        .output()
+        .map_err(|e| format!("Failed to execute curl: {}", e))?;
+
+    if !output.status.success() {
+        return Err("Failed to fetch release info from GitHub".to_string());
+    }
+
+    let body = String::from_utf8_lossy(&output.stdout);
+    for line in body.lines() {
+        if line.contains("\"tag_name\":") {
+            if let Some(version) = line.split('"').nth(3) {
+                return Ok(version.to_string());
+            }
+        }
+    }
+
+    Err("Could not parse version from GitHub response".to_string())
+}
+
+fn detect_system() -> Result<(String, String), String> {
+    let os_output = Command::new("uname")
+        .arg("-s")
+        .output()
+        .map_err(|_| "Failed to detect OS")?;
+    let os_raw = String::from_utf8_lossy(&os_output.stdout)
+        .trim()
+        .to_lowercase();
+
+    let os = if os_raw.contains("linux") {
+        "linux"
+    } else if os_raw.contains("darwin") {
+        "darwin"
+    } else if os_raw.contains("mingw") || os_raw.contains("msys") || os_raw.contains("cygwin") {
+        "windows"
+    } else {
+        return Err(format!("Unsupported OS: {}", os_raw));
+    };
+
+    let arch_output = Command::new("uname")
+        .arg("-m")
+        .output()
+        .map_err(|_| "Failed to detect architecture")?;
+    let arch_raw = String::from_utf8_lossy(&arch_output.stdout)
+        .trim()
+        .to_lowercase();
+
+    let arch = match arch_raw.as_str() {
+        "x86_64" | "amd64" => "x86_64",
+        "aarch64" | "arm64" => "aarch64",
+        "armv7l" => "armv7",
+        "i686" | "i386" => "i686",
+        _ => return Err(format!("Unsupported architecture: {}", arch_raw)),
+    };
+
+    Ok((os.to_string(), arch.to_string()))
+}
+
+fn get_rust_target(os: &str, arch: &str) -> String {
+    match (os, arch) {
+        ("linux", "x86_64") => "x86_64-unknown-linux-gnu",
+        ("linux", "aarch64") => "aarch64-unknown-linux-gnu",
+        ("linux", "armv7") => "armv7-unknown-linux-gnueabihf",
+        ("darwin", "x86_64") => "x86_64-apple-darwin",
+        ("darwin", "aarch64") => "aarch64-apple-darwin",
+        ("windows", "x86_64") => "x86_64-pc-windows-msvc",
+        ("windows", "i686") => "i686-pc-windows-msvc",
+        ("windows", "aarch64") => "aarch64-pc-windows-msvc",
+        _ => "x86_64-unknown-linux-gnu",
+    }
+    .to_string()
+}
+
+fn download_file(url: &str, dest: &Path) -> std::io::Result<()> {
+    let output = Command::new("curl")
+        .args(["-fsSL", url, "-o"])
+        .arg(dest)
+        .output()?;
+
+    if !output.status.success() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Download failed",
+        ));
+    }
+
+    Ok(())
+}
+
+fn extract_archive(archive: &Path, dest: &Path, ext: &str) -> std::io::Result<()> {
+    if ext == "zip" {
+        let output = Command::new("unzip")
+            .arg("-q")
+            .arg(archive)
+            .arg("-d")
+            .arg(dest)
+            .output()?;
+
+        if !output.status.success() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Extraction failed",
+            ));
+        }
+    } else {
+        let output = Command::new("tar")
+            .args(["xzf"])
+            .arg(archive)
+            .arg("-C")
+            .arg(dest)
+            .output()?;
+
+        if !output.status.success() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Extraction failed",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn is_version_newer(v1: &str, v2: &str) -> Option<bool> {
+    let parse_version = |v: &str| -> Option<Vec<u32>> {
+        v.split('.')
+            .map(|s| s.parse::<u32>().ok())
+            .collect::<Option<Vec<u32>>>()
+    };
+
+    let ver1 = parse_version(v1)?;
+    let ver2 = parse_version(v2)?;
+
+    Some(ver1 > ver2)
 }

@@ -1,6 +1,7 @@
 use katac::{
-    copy_katas, init_from_examples, new_kata, random_katas, run_katas, Args, Subcommands::Init,
-    Subcommands::New, Subcommands::Random, Subcommands::Run,
+    copy_katas, init_from_examples, new_kata, random_katas, run_katas, upgrade_katac, Args,
+    Subcommands::Init, Subcommands::New, Subcommands::Random, Subcommands::Run,
+    Subcommands::Upgrade,
 };
 
 use clap::Parser;
@@ -22,6 +23,7 @@ fn main() {
                 examples_dir,
                 select,
             } => init_from_examples(&args, examples_dir, select),
+            Upgrade { force } => upgrade_katac(*force),
         },
     }
 }

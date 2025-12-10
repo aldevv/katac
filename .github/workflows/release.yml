@@ -20,17 +20,49 @@ jobs:
   upload-assets:
     needs: create-release
     strategy:
+      fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+        include:
+          # Linux x86_64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          # Linux x86_64 musl (static)
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          # Linux ARM64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          # Linux ARMv7
+          - target: armv7-unknown-linux-gnueabihf
+            os: ubuntu-latest
+
+          # macOS x86_64 (Intel)
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          # macOS ARM64 (Apple Silicon)
+          - target: aarch64-apple-darwin
+            os: macos-latest
+
+          # Windows x86_64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          # Windows x86_64 GNU
+          - target: x86_64-pc-windows-gnu
+            os: windows-latest
+          # Windows i686 (32-bit)
+          - target: i686-pc-windows-msvc
+            os: windows-latest
+          # Windows ARM64
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: katac
+          target: ${{ matrix.target }}
           tar: unix
           zip: windows
           token: ${{ secrets.GITHUB_TOKEN }}
