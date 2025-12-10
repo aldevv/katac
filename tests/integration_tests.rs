@@ -281,3 +281,105 @@ fn test_init_command_with_duplicates() -> TestResult {
     cleanup(&test_katas_dir);
     Ok(())
 }
+
+#[test]
+fn test_start_command() -> TestResult {
+    let test_day_folder = format!("{}_start", DAY_FOLDER);
+    Command::cargo_bin(PRG)?
+        .args(["start", "foo", "bar"])
+        .env("KATAS_DIR", "tests/example_katas")
+        .env("DAYS_DIR", &test_day_folder)
+        .assert()
+        .stdout("Copying foo to day1...\nCopying bar to day1...\n");
+
+    // Verify day was created with katas
+    let day1_path = std::path::Path::new(&test_day_folder).join("day1");
+    assert!(day1_path.exists());
+    assert!(day1_path.join("foo").exists());
+    assert!(day1_path.join("bar").exists());
+
+    cleanup(&test_day_folder);
+    Ok(())
+}
+
+#[test]
+fn test_init_creates_makefile() -> TestResult {
+    let test_katas_dir = format!("{}_init_makefile", DAY_FOLDER);
+
+    // Use init to copy an embedded kata
+    Command::cargo_bin(PRG)?
+        .args(["init", "--select", "Queue"])
+        .env("KATAS_DIR", &test_katas_dir)
+        .assert()
+        .code(0);
+
+    // Verify Makefile was created (check for Queue or language-prefixed variant)
+    let katas_path = std::path::Path::new(&test_katas_dir);
+    let queue_dir = if katas_path.join("Queue").exists() {
+        katas_path.join("Queue")
+    } else if katas_path.join("go_Queue").exists() {
+        katas_path.join("go_Queue")
+    } else if katas_path.join("python_Queue").exists() {
+        katas_path.join("python_Queue")
+    } else {
+        panic!("No Queue kata was created");
+    };
+
+    let makefile = queue_dir.join("Makefile");
+    assert!(makefile.exists(), "Makefile should be created by init");
+
+    // Verify it has the run target
+    let content = std::fs::read_to_string(&makefile)?;
+    assert!(content.contains("run:"));
+
+    cleanup(&test_katas_dir);
+    Ok(())
+}
+
+#[test]
+fn test_copy_creates_makefile() -> TestResult {
+    let test_katas_dir = format!("{}_copy_makefile", DAY_FOLDER);
+    let test_day_folder = format!("{}_copy_makefile_days", DAY_FOLDER);
+
+    // First, init an embedded kata into katas dir
+    Command::cargo_bin(PRG)?
+        .args(["init", "--select", "Map"])
+        .env("KATAS_DIR", &test_katas_dir)
+        .assert()
+        .code(0);
+
+    // Find which variant was created
+    let katas_path = std::path::Path::new(&test_katas_dir);
+    let map_name = if katas_path.join("Map").exists() {
+        "Map"
+    } else if katas_path.join("go_Map").exists() {
+        "go_Map"
+    } else if katas_path.join("python_Map").exists() {
+        "python_Map"
+    } else {
+        panic!("No Map kata was created");
+    };
+
+    // Remove the Makefile from katas dir
+    let makefile_in_katas = katas_path.join(map_name).join("Makefile");
+    if makefile_in_katas.exists() {
+        std::fs::remove_file(&makefile_in_katas)?;
+    }
+
+    // Now copy to a day folder - it should recreate the Makefile
+    Command::cargo_bin(PRG)?
+        .args([map_name])
+        .env("KATAS_DIR", &test_katas_dir)
+        .env("DAYS_DIR", &test_day_folder)
+        .assert()
+        .code(0);
+
+    // Verify Makefile was created in the day folder
+    let day_kata_path = std::path::Path::new(&test_day_folder).join("day1").join(map_name);
+    let makefile = day_kata_path.join("Makefile");
+    assert!(makefile.exists(), "Makefile should be created when copying embedded kata");
+
+    cleanup(&test_katas_dir);
+    cleanup(&test_day_folder);
+    Ok(())
+}

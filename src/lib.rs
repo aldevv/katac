@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use dialoguer::MultiSelect;
+use inquire::{MultiSelect, Select};
 use fs_extra::dir::CopyOptions;
 use include_dir::{include_dir, Dir};
 use log::info;
@@ -44,6 +44,24 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Subcommands {
+    /// Initialize katas by selecting from example templates (uses embedded katas by default)
+    Init {
+        /// Optional path to external examples directory (default: uses embedded katas)
+        #[arg(long)]
+        examples_dir: Option<String>,
+
+        /// Select katas without interactive prompt (for testing/automation)
+        #[arg(long, hide = true)]
+        select: Option<String>,
+    },
+
+    /// Start a new day and copy specified katas
+    Start {
+        /// Katas to copy to new day
+        #[arg(required = true, num_args = 1..)]
+        kata_names: Vec<String>,
+    },
+
     /// Katas you want to run today (requires a makefile with the  'run' target in the kata's root folder)
     Run {
         /// Katas to run
@@ -55,13 +73,6 @@ pub enum Subcommands {
         command: Option<String>,
     },
 
-    /// Number of katas you want to do today, randomly taken from katas.toml
-    Random {
-        /// Katas to run
-        #[arg(required = true, num_args = 1..)]
-        number_of_katas: u8,
-    },
-
     /// Create a new kata
     New {
         /// Name of the kata you want to create
@@ -69,15 +80,11 @@ pub enum Subcommands {
         kata_name: String,
     },
 
-    /// Initialize katas by selecting from example templates (uses embedded katas by default)
-    Init {
-        /// Optional path to external examples directory (default: uses embedded katas)
-        #[arg(long)]
-        examples_dir: Option<String>,
-
-        /// Select katas without interactive prompt (for testing/automation)
-        #[arg(long, hide = true)]
-        select: Option<String>,
+    /// Number of katas you want to do today, randomly taken from katas.toml
+    Random {
+        /// Katas to run
+        #[arg(required = true, num_args = 1..)]
+        number_of_katas: u8,
     },
 
     /// Upgrade katac to the latest version
@@ -210,7 +217,15 @@ pub fn copy_katas(args: &Args, kata_names: &Vec<String>) {
             }
         }
         match fs_extra::copy_items(&[&src], &dst, &CopyOptions::new()) {
-            Ok(_) => println!("Copying {} to {}...", kata_name, basename(&dst)),
+            Ok(_) => {
+                println!("Copying {} to {}...", kata_name, basename(&dst));
+
+                // Check if this is an embedded kata and ensure Makefile exists
+                let copied_path = dst.join(kata_name);
+                if let Some((language, _)) = is_embedded_kata(kata_name) {
+                    ensure_makefile_exists(&copied_path, &language, kata_name);
+                }
+            }
             Err(e) => {
                 eprintln!("Error copying '{}': {}", kata_name, e);
                 errors.push(kata_name.clone());
@@ -298,7 +313,30 @@ fn run(curday_kata_path: PathBuf) -> Option<std::process::Child> {
 /// runs the kata in the given path using the make command
 fn run_make_command(path: PathBuf) -> Option<std::process::Child> {
     let makefile_path = path.join("Makefile");
+
     if !makefile_path.exists() {
+        // Check if this is an embedded example kata
+        if let Some(kata_name) = path.file_name().and_then(|n| n.to_str()) {
+            if let Some((language, _)) = is_embedded_kata(kata_name) {
+                if let Some(run_cmd) = get_embedded_run_command(&language, kata_name) {
+                    println!("Running embedded kata command: {}", run_cmd);
+                    // Parse and execute the command
+                    let mut parts = run_cmd.split_whitespace();
+                    if let Some(cmd) = parts.next() {
+                        return Some(
+                            Command::new(cmd)
+                                .args(parts)
+                                .current_dir(path)
+                                .stdout(std::process::Stdio::inherit())
+                                .stderr(std::process::Stdio::inherit())
+                                .spawn()
+                                .expect("failed to run the kata"),
+                        );
+                    }
+                }
+            }
+        }
+
         println!("No Makefile found in {}", path.display());
         return None;
     }
@@ -574,6 +612,75 @@ fn scan_embedded_katas() -> Vec<(String, String)> {
     katas
 }
 
+/// Checks if a kata is from embedded example-katas
+fn is_embedded_kata(kata_name: &str) -> Option<(String, String)> {
+    let available = scan_embedded_katas();
+    available
+        .into_iter()
+        .find(|(_, name)| name == kata_name)
+}
+
+/// Extracts the run command from an embedded kata's Makefile
+fn get_embedded_run_command(language: &str, kata_name: &str) -> Option<String> {
+    let makefile_path = format!("{}/{}/Makefile", language, kata_name);
+    let makefile = EXAMPLE_KATAS.get_file(&makefile_path)?;
+    let content = std::str::from_utf8(makefile.contents()).ok()?;
+
+    // Parse Makefile to extract run target command
+    for line in content.lines() {
+        let trimmed = line.trim();
+        // Skip the "run:" line, get the command (starts with tab)
+        if line.starts_with('\t') && !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    None
+}
+
+/// Copies the Makefile from an embedded kata if it doesn't exist
+fn ensure_makefile_exists(dest: &Path, language: &str, kata_name: &str) {
+    let makefile_dest = dest.join("Makefile");
+
+    // Don't overwrite existing Makefile
+    if makefile_dest.exists() {
+        return;
+    }
+
+    // Copy from embedded kata
+    let makefile_path = format!("{}/{}/Makefile", language, kata_name);
+    if let Some(makefile) = EXAMPLE_KATAS.get_file(&makefile_path) {
+        if let Ok(()) = fs::write(&makefile_dest, makefile.contents()) {
+            println!("  → Created Makefile for {}", kata_name);
+        }
+    }
+}
+
+/// Extracts unique language names from embedded katas
+fn get_available_languages() -> Vec<String> {
+    let mut languages: Vec<String> = EXAMPLE_KATAS
+        .dirs()
+        .filter_map(|dir| {
+            dir.path()
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|s| s.to_string())
+        })
+        .collect();
+
+    languages.sort();
+    languages.dedup();
+    languages
+}
+
+/// Filters katas by language
+fn filter_katas_by_language(all_katas: &[(String, String)], language: &str) -> Vec<String> {
+    all_katas
+        .iter()
+        .filter(|(lang, _)| lang == language)
+        .map(|(_, kata)| kata.clone())
+        .collect()
+}
+
 /// scans an external examples directory and returns a list of (language, kata_name) tuples
 fn scan_external_katas(examples_dir: &str) -> Vec<(String, String)> {
     let mut katas = Vec::new();
@@ -708,7 +815,7 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
         .collect();
 
     // Get selections (either from --select flag or interactive prompt)
-    let selections = if let Some(select_str) = select {
+    let selections: Vec<usize> = if let Some(select_str) = select {
         // Non-interactive mode for testing/automation
         let selected_names: Vec<String> = select_str
             .split(',')
@@ -722,18 +829,60 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
             .map(|(i, _)| i)
             .collect()
     } else {
-        // Interactive mode
-        match MultiSelect::new()
-            .with_prompt("Select katas to initialize (SPACE to select, ENTER to confirm)")
-            .items(&options)
-            .interact()
-        {
-            Ok(selections) => selections,
+        // Interactive mode - Two-step process
+
+        // Step 1: Select language
+        let languages = get_available_languages();
+        let selected_language = match Select::new("Choose a language", languages.clone()).prompt() {
+            Ok(lang) => lang,
             Err(e) => {
+                // Exit silently if user cancelled the operation
+                if matches!(e, inquire::InquireError::OperationCanceled) {
+                    std::process::exit(0);
+                }
                 eprintln!("Error: Failed to read user input: {}", e);
                 std::process::exit(1);
             }
+        };
+
+        // Step 2: Fuzzy multi-select katas for chosen language
+        let language_katas = filter_katas_by_language(&available_katas, &selected_language);
+
+        if language_katas.is_empty() {
+            eprintln!("Error: No katas found for language '{}'", selected_language);
+            std::process::exit(1);
         }
+
+        let selected_kata_names = match MultiSelect::new(
+            format!(
+                "Select {} katas (type to filter, SPACE to select, ENTER to confirm)",
+                selected_language
+            )
+            .as_str(),
+            language_katas.clone(),
+        )
+        .prompt()
+        {
+            Ok(selections) => selections,
+            Err(e) => {
+                // Exit silently if user cancelled the operation
+                if matches!(e, inquire::InquireError::OperationCanceled) {
+                    std::process::exit(0);
+                }
+                eprintln!("Error: Failed to read user input: {}", e);
+                std::process::exit(1);
+            }
+        };
+
+        // Map selected kata names back to indices in available_katas
+        selected_kata_names
+            .into_iter()
+            .filter_map(|kata_name| {
+                available_katas
+                    .iter()
+                    .position(|(lang, name)| lang == &selected_language && name == &kata_name)
+            })
+            .collect()
     };
 
     if selections.is_empty() {
@@ -756,12 +905,14 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
 
     for &idx in &selections {
         let (language, kata_name) = &available_katas[idx];
+        let language = language.as_str();
+        let kata_name = kata_name.as_str();
 
         // Determine final destination name
         let final_dest_name = if seen_names.contains(kata_name) {
             format!("{}_{}", language, kata_name)
         } else {
-            kata_name.clone()
+            kata_name.to_string()
         };
 
         let final_dest = PathBuf::from(&katas_path).join(&final_dest_name);
@@ -822,7 +973,11 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
                     "✓ Copied [{}] {} to {}/{}",
                     language, kata_name, katas_path, final_dest_name
                 );
-                seen_names.insert(kata_name.clone());
+
+                // Ensure Makefile exists
+                ensure_makefile_exists(&final_dest, language, kata_name);
+
+                seen_names.insert(kata_name.to_string());
                 copied_count += 1;
             }
             Err(e) => {
