@@ -1,8 +1,10 @@
 use clap::{Parser, Subcommand};
+use dialoguer::MultiSelect;
 use fs_extra::dir::CopyOptions;
 use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -62,6 +64,17 @@ pub enum Subcommands {
         #[arg(required = true, num_args = 1..)]
         kata_name: String,
     },
+
+    /// Initialize katas by selecting from example templates
+    Init {
+        /// Optional path to examples directory (default: ./example-katas)
+        #[arg(long)]
+        examples_dir: Option<String>,
+
+        /// Select katas without interactive prompt (for testing/automation)
+        #[arg(long, hide = true)]
+        select: Option<String>,
+    },
 }
 
 #[derive(Deserialize, Debug)]
@@ -113,8 +126,13 @@ fn get_dir(
         .map(|s| s.as_str())
         .unwrap_or(CONFIG_FILE_NAME);
 
-    if let Some(config_value) = config_extractor(&read_config_file(config_file_name.to_string())) {
-        return config_value;
+    // Only read config file if it exists
+    if Path::new(config_file_name).exists() {
+        if let Some(config_value) =
+            config_extractor(&read_config_file(config_file_name.to_string()))
+        {
+            return config_value;
+        }
     }
 
     default.to_string()
@@ -291,10 +309,7 @@ fn run_os_command(run_path: PathBuf) -> Option<std::process::Child> {
     if cfg!(target_os = "windows") {
         let bat_file = run_path.join("run.bat");
         if !bat_file.exists() {
-            println!(
-                "No run.bat file found in {}",
-                run_path.display()
-            );
+            println!("No run.bat file found in {}", run_path.display());
             return None;
         }
 
@@ -312,10 +327,7 @@ fn run_os_command(run_path: PathBuf) -> Option<std::process::Child> {
 
     let sh_file = run_path.join("run.sh");
     if !sh_file.exists() {
-        println!(
-            "No run.sh file found in {}",
-            run_path.display()
-        );
+        println!("No run.sh file found in {}", run_path.display());
         return None;
     }
 
@@ -510,4 +522,219 @@ fn read_random_katas_from_config_file(config_file: String) -> Vec<String> {
         std::process::exit(1);
     }
     kata_names
+}
+
+/// scans the examples directory and returns a list of (language, kata_name) tuples
+fn scan_example_katas(examples_dir: &str) -> Vec<(String, String)> {
+    let mut katas = Vec::new();
+
+    let examples_path = Path::new(examples_dir);
+    if !examples_path.exists() {
+        eprintln!(
+            "Error: Examples directory '{}' does not exist",
+            examples_dir
+        );
+        std::process::exit(1);
+    }
+
+    let entries = match fs::read_dir(examples_path) {
+        Ok(entries) => entries,
+        Err(e) => {
+            eprintln!("Error: Failed to read examples directory: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    for entry in entries.filter_map(|e| e.ok()) {
+        let language_path = entry.path();
+        if !language_path.is_dir() {
+            continue;
+        }
+
+        let language = match entry.file_name().into_string() {
+            Ok(name) => name,
+            Err(_) => continue,
+        };
+
+        let kata_entries = match fs::read_dir(&language_path) {
+            Ok(entries) => entries,
+            Err(_) => continue,
+        };
+
+        for kata_entry in kata_entries.filter_map(|e| e.ok()) {
+            if !kata_entry.path().is_dir() {
+                continue;
+            }
+
+            if let Ok(kata_name) = kata_entry.file_name().into_string() {
+                katas.push((language.clone(), kata_name));
+            }
+        }
+    }
+
+    katas.sort_by(|a, b| {
+        // Sort by kata name first, then by language
+        match a.1.cmp(&b.1) {
+            std::cmp::Ordering::Equal => a.0.cmp(&b.0),
+            other => other,
+        }
+    });
+
+    katas
+}
+
+/// initializes katas by selecting from example templates
+pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &Option<String>) {
+    const DEFAULT_EXAMPLES_DIR: &str = "example-katas";
+
+    let examples_path = examples_dir.as_deref().unwrap_or(DEFAULT_EXAMPLES_DIR);
+    let katas_path = katas_dir(args);
+
+    // Scan for available example katas
+    let available_katas = scan_example_katas(examples_path);
+
+    if available_katas.is_empty() {
+        eprintln!("Error: No example katas found in '{}'", examples_path);
+        std::process::exit(1);
+    }
+
+    // Format options for display: "[language] KataName"
+    let options: Vec<String> = available_katas
+        .iter()
+        .map(|(lang, kata)| format!("[{}] {}", lang, kata))
+        .collect();
+
+    // Get selections (either from --select flag or interactive prompt)
+    let selections = if let Some(select_str) = select {
+        // Non-interactive mode for testing/automation
+        let selected_names: Vec<String> = select_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
+
+        options
+            .iter()
+            .enumerate()
+            .filter(|(_, opt)| selected_names.iter().any(|sel| opt.contains(sel)))
+            .map(|(i, _)| i)
+            .collect()
+    } else {
+        // Interactive mode
+        match MultiSelect::new()
+            .with_prompt("Select katas to initialize (SPACE to select, ENTER to confirm)")
+            .items(&options)
+            .interact()
+        {
+            Ok(selections) => selections,
+            Err(e) => {
+                eprintln!("Error: Failed to read user input: {}", e);
+                std::process::exit(1);
+            }
+        }
+    };
+
+    if selections.is_empty() {
+        println!("No katas selected. Exiting.");
+        return;
+    }
+
+    // Create katas directory if it doesn't exist
+    if !Path::new(&katas_path).exists() {
+        if let Err(e) = fs::create_dir_all(&katas_path) {
+            eprintln!("Error: Failed to create katas directory: {}", e);
+            std::process::exit(1);
+        }
+    }
+
+    // Copy selected katas
+    let mut errors = Vec::new();
+    let mut copied_count = 0;
+    let mut seen_names: HashSet<String> = HashSet::new();
+
+    for &idx in &selections {
+        let (language, kata_name) = &available_katas[idx];
+        let src = PathBuf::from(examples_path).join(language).join(kata_name);
+
+        // Determine final destination name
+        let final_dest_name = if seen_names.contains(kata_name) {
+            format!("{}_{}", language, kata_name)
+        } else {
+            kata_name.clone()
+        };
+
+        let final_dest = PathBuf::from(&katas_path).join(&final_dest_name);
+
+        // Skip if final destination already exists
+        if final_dest.exists() {
+            println!(
+                "Note: {} already exists, skipping [{}] {}",
+                final_dest_name, language, kata_name
+            );
+            continue;
+        }
+
+        // Show note if we're renaming due to duplicate selection
+        if final_dest_name != *kata_name {
+            println!(
+                "Note: {} was already selected, creating [{}] {} as {}",
+                kata_name, language, kata_name, final_dest_name
+            );
+        }
+
+        // Copy to a temporary unique name first to avoid conflicts during copy
+        let temp_name = format!(".tmp_{}_{}", language, kata_name);
+        let temp_path = PathBuf::from(&katas_path).join(&temp_name);
+
+        // Create a temporary subdirectory to copy into
+        if let Err(e) = fs::create_dir_all(&temp_path) {
+            eprintln!(
+                "Error creating temp directory for [{}] {}: {}",
+                language, kata_name, e
+            );
+            errors.push(format!("[{}] {}", language, kata_name));
+            continue;
+        }
+
+        // Copy items into the temp directory
+        match fs_extra::copy_items(&[&src], &temp_path, &CopyOptions::new()) {
+            Ok(_) => {
+                // The copied directory is now at temp_path/kata_name
+                let copied_dir = temp_path.join(kata_name);
+
+                // Move to final destination
+                if let Err(e) = fs::rename(&copied_dir, &final_dest) {
+                    eprintln!(
+                        "Error moving [{}] {} to final destination: {}",
+                        language, kata_name, e
+                    );
+                    // Clean up temp directory
+                    let _ = fs::remove_dir_all(&temp_path);
+                    errors.push(format!("[{}] {}", language, kata_name));
+                    continue;
+                }
+
+                // Clean up temp directory
+                let _ = fs::remove_dir_all(&temp_path);
+
+                println!(
+                    "✓ Copied [{}] {} to {}/{}",
+                    language, kata_name, katas_path, final_dest_name
+                );
+                seen_names.insert(kata_name.clone());
+                copied_count += 1;
+            }
+            Err(e) => {
+                eprintln!("Error copying [{}] {}: {}", language, kata_name, e);
+                let _ = fs::remove_dir_all(&temp_path);
+                errors.push(format!("[{}] {}", language, kata_name));
+            }
+        }
+    }
+
+    println!("\nSuccessfully initialized {} kata(s)!", copied_count);
+
+    if !errors.is_empty() {
+        eprintln!("\nFailed to copy {} kata(s)", errors.len());
+        std::process::exit(1);
+    }
 }

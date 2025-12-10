@@ -228,3 +228,57 @@ fn test_new_command_already_exists() -> TestResult {
         .stdout("Kata foo already exists\n");
     Ok(())
 }
+
+#[test]
+fn test_init_command() -> TestResult {
+    let test_katas_dir = format!("{}_init", DAY_FOLDER);
+
+    // Test with --select flag to bypass interactive mode
+    // Using real example-katas directory with language structure
+    let cmd = Command::cargo_bin(PRG)?
+        .args(["init", "--select", "Queue,Map"])
+        .env("KATAS_DIR", &test_katas_dir)
+        .args(["--examples-dir", "example-katas"])
+        .assert()
+        .code(0);
+
+    let output = String::from_utf8(cmd.get_output().stdout.clone())?;
+    assert!(output.contains("Successfully initialized"));
+    assert!(output.contains("Queue") || output.contains("Map"));
+
+    // Verify at least one kata was copied
+    let katas_path = std::path::Path::new(&test_katas_dir);
+    assert!(katas_path.exists());
+    let count = std::fs::read_dir(katas_path)?.count();
+    assert!(count > 0, "No katas were copied");
+
+    cleanup(&test_katas_dir);
+    Ok(())
+}
+
+#[test]
+fn test_init_command_with_duplicates() -> TestResult {
+    let test_katas_dir = format!("{}_init_dup", DAY_FOLDER);
+
+    // Select the same kata from multiple languages (if available)
+    // This tests the conflict resolution where second selection gets language prefix
+    let cmd = Command::cargo_bin(PRG)?
+        .args(["init", "--select", "ArrayList"])
+        .env("KATAS_DIR", &test_katas_dir)
+        .args(["--examples-dir", "example-katas"])
+        .assert()
+        .code(0);
+
+    let output = String::from_utf8(cmd.get_output().stdout.clone())?;
+    assert!(output.contains("Successfully initialized"));
+
+    // Should have created at least one ArrayList variant
+    let katas_path = std::path::Path::new(&test_katas_dir);
+    let has_arraylist = katas_path.join("ArrayList").exists()
+        || katas_path.join("go_ArrayList").exists()
+        || katas_path.join("python_ArrayList").exists();
+    assert!(has_arraylist, "No ArrayList variant was created");
+
+    cleanup(&test_katas_dir);
+    Ok(())
+}
