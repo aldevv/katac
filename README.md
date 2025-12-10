@@ -1,4 +1,5 @@
-[![Pipeline](https://github.com/aldevv/katac/actions/workflows/pipeline.yml/badge.svg)](https://github.com/aldevv/katac/actions/workflows/pipeline.yml) 
+[![Tests](https://github.com/aldevv/katac/actions/workflows/tests.yml/badge.svg)](https://github.com/aldevv/katac/actions/workflows/tests.yml)
+[![Releases](https://github.com/aldevv/katac/actions/workflows/release.yml/badge.svg)](https://github.com/aldevv/katac/actions/workflows/release.yml)
 
 Katac is a simple command-line application designed to streamline the process of practicing coding katas. It allows you to organize your katas by copying them into dedicated day folders and easily run them when you're done
 
@@ -7,6 +8,8 @@ Katac is a simple command-line application designed to streamline the process of
 - **Organized Practice:** Create day folders to neatly store katas for each day of practice.
 - **Effortless Copying:** Copy a kata into the designated day folder with a single command.
 - **Seamless Execution:** Run katas effortlessly from within their respective day folders.
+- **Interactive Selection:** Choose example katas with multi-select interface.
+- **Self-Update:** Upgrade to the latest version with one command.
 
 # Install
 ## Quick Install (Recommended)
@@ -15,7 +18,7 @@ curl -fsSL https://raw.githubusercontent.com/aldevv/katac/main/install.sh | bash
 ```
 
 ## Releases
-you can download the release for your specific OS and put it in your PATH
+Download pre-built binaries from the [releases page](https://github.com/aldevv/katac/releases) for your platform (Linux, macOS, Windows - x86_64, ARM64, etc.)
 
 ## Cargo
 ```bash
@@ -102,6 +105,18 @@ the katac.toml file
 ```toml
 [katas]
 random = ["Map", "LRU", "Trie", "Stack"]
+```
+
+## initialize from examples
+interactively select and copy example katas:
+```bash
+katac init
+```
+
+## upgrade
+update to the latest version:
+```bash
+katac upgrade
 ```
 
 # Contributing
