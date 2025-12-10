@@ -796,8 +796,7 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
             let temp_path = PathBuf::from(&katas_path).join(&temp_name);
 
             if let Err(e) = fs::create_dir_all(&temp_path) {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                Err(std::io::Error::other(
                     format!("Failed to create temp directory: {}", e),
                 ))
             } else {
@@ -810,8 +809,7 @@ pub fn init_from_examples(args: &Args, examples_dir: &Option<String>, select: &O
                     }
                     Err(e) => {
                         let _ = fs::remove_dir_all(&temp_path);
-                        Err(std::io::Error::new(
-                            std::io::ErrorKind::Other,
+                        Err(std::io::Error::other(
                             e.to_string(),
                         ))
                     }
@@ -929,7 +927,7 @@ pub fn upgrade_katac(force: bool) {
         std::process::exit(1);
     }
 
-    if let Err(e) = extract_archive(&download_path, &extract_dir, &ext) {
+    if let Err(e) = extract_archive(&download_path, &extract_dir, ext) {
         eprintln!("Error: Failed to extract: {}", e);
         let _ = fs::remove_dir_all(&extract_dir);
         std::process::exit(1);
@@ -1092,8 +1090,7 @@ fn download_file(url: &str, dest: &Path) -> std::io::Result<()> {
         .output()?;
 
     if !output.status.success() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        return Err(std::io::Error::other(
             "Download failed",
         ));
     }
@@ -1111,8 +1108,7 @@ fn extract_archive(archive: &Path, dest: &Path, ext: &str) -> std::io::Result<()
             .output()?;
 
         if !output.status.success() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(std::io::Error::other(
                 "Extraction failed",
             ));
         }
@@ -1125,8 +1121,7 @@ fn extract_archive(archive: &Path, dest: &Path, ext: &str) -> std::io::Result<()
             .output()?;
 
         if !output.status.success() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(std::io::Error::other(
                 "Extraction failed",
             ));
         }
