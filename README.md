@@ -9,12 +9,21 @@ Katac is a simple command-line application designed to streamline the process of
 - **Seamless Execution:** Run katas effortlessly from within their respective day folders.
 
 # Install
+## Quick Install (Recommended)
+```bash
+curl -fsSL https://raw.githubusercontent.com/aldevv/katac/main/install.sh | bash
+```
+
 ## Releases
 you can download the release for your specific OS and put it in your PATH
 
 ## Cargo
 ```bash
+# From crates.io
 cargo install katac
+
+# Or directly from GitHub
+cargo install --git https://github.com/aldevv/katac
 ```
 
 # Dependencies
