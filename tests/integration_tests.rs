@@ -375,9 +375,14 @@ fn test_copy_creates_makefile() -> TestResult {
         .code(0);
 
     // Verify Makefile was created in the day folder
-    let day_kata_path = std::path::Path::new(&test_day_folder).join("day1").join(map_name);
+    let day_kata_path = std::path::Path::new(&test_day_folder)
+        .join("day1")
+        .join(map_name);
     let makefile = day_kata_path.join("Makefile");
-    assert!(makefile.exists(), "Makefile should be created when copying embedded kata");
+    assert!(
+        makefile.exists(),
+        "Makefile should be created when copying embedded kata"
+    );
 
     cleanup(&test_katas_dir);
     cleanup(&test_day_folder);

@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
-use inquire::{MultiSelect, Select};
 use fs_extra::dir::CopyOptions;
 use include_dir::{include_dir, Dir};
+use inquire::{MultiSelect, Select};
 use log::info;
 use rand::{self, seq::SliceRandom, thread_rng};
 use serde::Deserialize;
@@ -615,9 +615,7 @@ fn scan_embedded_katas() -> Vec<(String, String)> {
 /// Checks if a kata is from embedded example-katas
 fn is_embedded_kata(kata_name: &str) -> Option<(String, String)> {
     let available = scan_embedded_katas();
-    available
-        .into_iter()
-        .find(|(_, name)| name == kata_name)
+    available.into_iter().find(|(_, name)| name == kata_name)
 }
 
 /// Extracts the run command from an embedded kata's Makefile

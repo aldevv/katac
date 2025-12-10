@@ -1,7 +1,7 @@
 use katac::{
     copy_katas, init_from_examples, new_kata, random_katas, run_katas, upgrade_katac, Args,
-    Subcommands::Init, Subcommands::New, Subcommands::Random, Subcommands::Run,
-    Subcommands::Start, Subcommands::Upgrade,
+    Subcommands::Init, Subcommands::New, Subcommands::Random, Subcommands::Run, Subcommands::Start,
+    Subcommands::Upgrade,
 };
 
 use clap::Parser;
