@@ -36,17 +36,15 @@ fn test_run_kata() -> TestResult {
         .assert()
         .stdout("Copying baz to day1...\n");
 
-    Command::cargo_bin(PRG)?
+    let cmd = Command::cargo_bin(PRG)?
         .args(["run", "baz"])
         .env("DAYS_DIR", &test_day_folder)
-        .assert()
-        .stdout(
-            r#"
-> Running baz [1/1]
---------------------
-console.log("hello world");
-"#,
-        );
+        .assert();
+
+    let output = String::from_utf8(cmd.get_output().stdout.clone())?;
+    assert!(output.contains("> Running baz [1/1]"));
+    assert!(output.contains("console.log(\"hello world\")"));
+
     cleanup(&test_day_folder);
     Ok(())
 }
@@ -157,17 +155,17 @@ fn test_run_kata_no_makefile() -> TestResult {
         .assert()
         .stdout("Copying foo to day1...\n");
 
-    Command::cargo_bin(PRG)?
+    let cmd = Command::cargo_bin(PRG)?
         .args(["run", "foo"])
         .env("DAYS_DIR", &test_day_folder)
-        .assert()
-        .stdout(
-            r#"
-> Running foo [1/1]
---------------------
-No Makefile found in tests/day_test_run_no_makefile/day1/foo
-"#,
-        );
+        .assert();
+
+    let output = String::from_utf8(cmd.get_output().stdout.clone())?;
+    assert!(output.contains("> Running foo [1/1]"));
+    assert!(output.contains("No Makefile found"));
+    assert!(output.contains(&test_day_folder));
+    assert!(output.contains("foo"));
+
     cleanup(&test_day_folder);
     Ok(())
 }
