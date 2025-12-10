@@ -193,7 +193,8 @@ fn test_run_all() -> TestResult {
         assert!(run_output.contains(&format!("> Running {}", s)));
         match s {
             &"foo" | &"bar" => {
-                assert!(run_output.contains("No Makefile found in tests/day_test_run_all/day1"));
+                assert!(run_output.contains("No Makefile found"));
+                assert!(run_output.contains(&test_day_folder));
             }
             &"baz" => {
                 assert!(run_output.contains("console.log(\"hello world\")"));
