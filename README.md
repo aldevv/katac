@@ -27,13 +27,7 @@ cargo install katac
 curl -fsSL https://raw.githubusercontent.com/aldevv/katac/main/install.sh | bash
 ```
 
-Or grab a binary directly from the [releases page](https://github.com/aldevv/katac/releases).
-
-The install script puts the binary at `~/.local/bin/katac` (override with `INSTALL_DIR`); make sure that directory is on your `PATH`. `make` is optional — `run.sh` / `run.bat` is used as a fallback.
-
-**On Windows**, `install.sh` needs a bash environment (Git Bash, MSYS2, WSL). From native PowerShell or CMD, use `cargo install katac` or download a binary from the releases page.
-
-After install, verify with `katac --version`.
+Or grab a binary directly from the [releases page](https://github.com/aldevv/katac/releases). On native Windows, use `cargo install katac` — `install.sh` requires bash.
 
 ## Commands
 
