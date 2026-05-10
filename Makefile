@@ -16,6 +16,14 @@ it: build-test
 format:
 	cargo fmt --all
 
+# Re-render the README/docs GIFs. Builds the release binary first and exposes
+# it via PATH so the tapes can shell out to `katac` without any absolute paths.
+# Requires `vhs`, `ttyd`, `ffmpeg`, and (for the tutorial) `nano` + `python3`.
+demos:
+	cargo build --release
+	PATH="$(CURDIR)/target/release:$$PATH" vhs docs/demo.tape
+	PATH="$(CURDIR)/target/release:$$PATH" vhs docs/tutorial.tape
+
 # Get the current version from Cargo.toml
 VERSION := $(shell grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
 TAG := v$(VERSION)
@@ -74,4 +82,4 @@ untag:
 		echo "Tag $(TAG) does not exist on remote"; \
 	fi
 
-.PHONY: version tag release untag
+.PHONY: version tag release untag demos

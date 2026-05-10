@@ -7,6 +7,8 @@ A CLI that turns coding katas into a daily habit: copy a template into a numbere
 
 > A *kata* is a short, focused programming exercise meant to be repeated for practice.
 
+![katac demo](docs/demo.gif)
+
 ## Quickstart
 
 ```console
@@ -45,7 +47,8 @@ Or grab a binary directly from the [releases page](https://github.com/aldevv/kat
 
 ## Documentation
 
-[docs/usage.md](docs/usage.md) covers `katac.toml` configuration, restricting the random pool, and per-kata Makefile recipes.
+- [docs/tutorial.md](docs/tutorial.md) — walk through scaffolding your own kata, failing the test, and implementing it.
+- [docs/usage.md](docs/usage.md) — `katac.toml` configuration, restricting the random pool, and per-kata Makefile recipes.
 
 ## Contributing
 
