@@ -337,6 +337,20 @@ fn test_init_creates_makefile() -> TestResult {
 }
 
 #[test]
+fn test_upgrade_help_advertises_force_flag() -> TestResult {
+    // Smoke test for the upgrade subcommand wiring — confirms the --force
+    // flag is reachable through clap without hitting the network or
+    // replacing the running binary.
+    let cmd = Command::cargo_bin(PRG)?
+        .args(["upgrade", "--help"])
+        .assert();
+    let output = String::from_utf8(cmd.get_output().stdout.clone())?;
+    assert!(output.contains("--force"));
+    assert!(output.contains("Force reinstallation"));
+    Ok(())
+}
+
+#[test]
 fn test_copy_creates_makefile() -> TestResult {
     let test_katas_dir = format!("{}_copy_makefile", DAY_FOLDER);
     let test_day_folder = format!("{}_copy_makefile_days", DAY_FOLDER);

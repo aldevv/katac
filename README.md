@@ -1,123 +1,67 @@
-[![Tests](https://github.com/aldevv/katac/actions/workflows/tests.yml/badge.svg)](https://github.com/aldevv/katac/actions/workflows/tests.yml)
-[![Releases](https://github.com/aldevv/katac/actions/workflows/release.yml/badge.svg)](https://github.com/aldevv/katac/actions/workflows/release.yml)
+# katac
 
-Katac is a simple command-line application designed to streamline the process of practicing coding katas. It allows you to organize your katas by copying them into dedicated day folders and easily run them when you're done
+[![Crates.io](https://img.shields.io/crates/v/katac)](https://crates.io/crates/katac)
+[![License](https://img.shields.io/crates/l/katac)](#license)
 
-# Features
+A CLI that turns coding katas into a daily habit: copy a template into a numbered `days/dayN/` folder and run it with one command, so you spend time solving instead of organizing.
 
-- **Organized Practice:** Create day folders to neatly store katas for each day of practice.
-- **Effortless Copying:** Copy a kata into the designated day folder with a single command.
-- **Seamless Execution:** Run katas effortlessly from within their respective day folders.
-- **Interactive Selection:** Choose example katas with multi-select interface.
-- **Self-Update:** Upgrade to the latest version with one command.
+> A *kata* is a short, focused programming exercise meant to be repeated for practice.
 
-# Install
-## Quick Install (Recommended)
+## Quickstart
+
+```console
+$ katac init                  # pick a language, then katas to seed katas/
+$ katac Queue                 # copies katas/Queue into days/day1/Queue
+$ katac run                   # runs everything in the latest day folder
+```
+
+That's the inner loop: `init` once, `katac <kata>` to start a day, `katac run` while you work.
+
+## Install
+
 ```bash
+# crates.io (recommended for Rust users)
+cargo install katac
+
+# Pre-built binary
 curl -fsSL https://raw.githubusercontent.com/aldevv/katac/main/install.sh | bash
 ```
 
-## Releases
-Download pre-built binaries from the [releases page](https://github.com/aldevv/katac/releases) for your platform (Linux, macOS, Windows - x86_64, ARM64, etc.)
+Or grab a binary directly from the [releases page](https://github.com/aldevv/katac/releases).
 
-## Cargo
-```bash
-# From crates.io
-cargo install katac
+The install script puts the binary at `~/.local/bin/katac` (override with `INSTALL_DIR`); make sure that directory is on your `PATH`. `make` is optional — `run.sh` / `run.bat` is used as a fallback.
 
-# Or directly from GitHub
-cargo install --git https://github.com/aldevv/katac
-```
+**On Windows**, `install.sh` needs a bash environment (Git Bash, MSYS2, WSL). From native PowerShell or CMD, use `cargo install katac` or download a binary from the releases page.
 
-# Dependencies
-- make
+After install, verify with `katac --version`.
 
-# Usage
-## create a kata
-1. create a folder named `katas` 
-2. add the name for a kata you want to create
-```bash
-mkdir -p katas/hello_world
-```
-3. add the skeleton, this is the entrypoint for each day
-```go
-// hello.go
-func helloWorld() {
-}
+## Commands
 
-func main() {
-    helloWorld()
-}
-```
+| Command                  | What it does                                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `katac init`             | Interactively seed templates into `katas/` from embedded examples (`--examples-dir <path>` for your own).   |
+| `katac <kata>...`        | Copy katas into the next `days/dayN/`. Sugar for `katac start`.                                             |
+| `katac start <kata>...`  | Same as the bare form, explicit.                                                                            |
+| `katac run [kata]...`    | Run katas in the latest `dayN/`; defaults to all. Pass `-c <cmd>` to override the run command.              |
+| `katac new <name>`       | Scaffold a new kata in `katas/`.                                                                            |
+| `katac random <N>`       | Copy `N` randomly-picked katas into the next day.                                                           |
+| `katac upgrade`          | Self-update to the latest GitHub release.                                                                   |
 
-## begin a new day
-to begin a new day run the katac command with the kata or katas you want to do:
-(it can also be a path)
-```bash
-# katac <kata_name>...
-katac hello_world
-```
-this will create a `days` folder which will contain a `day1` containing your kata
+`katac init` ships embedded templates for **Go** and **Python**. Adding a template — in a new language or for an existing one — is a great first contribution; see [docs/contributing.md](docs/contributing.md).
 
-## run your kata
-you can run your kata if the kata has a Makefile (if you have make), or a run.sh (run.bat for windows)
-```make
-# Makefile
-run:
-	go run hello.go
-```
+## Documentation
 
-after you are done writing the kata like in this example:
-```go
-import "fmt"
-func helloWorld() {
-    fmt.Println("hello world")
-}
+[docs/usage.md](docs/usage.md) covers `katac.toml` configuration, restricting the random pool, and per-kata Makefile recipes.
 
-func main() {
-    helloWorld()
-}
-```
-you can run it by doing this:
-```bash
-# katac run [kata_name]...
-katac run
-```
+## Contributing
 
-## change katas folder and days folder permanently
-you can create a katac.toml file that looks like this:
-```toml
-[katas]
-katas_dir = "go-katas"
-days_dir = "go-days"
-```
+Issues and pull requests welcome. See [docs/contributing.md](docs/contributing.md) for development setup, how to add new kata templates, and the release process.
 
-## run random katas
-you can run random katas by using the random command and giving the number of random katas
-you want to do, like this
-```bash
-# this will copy 4 randomly selected katas from your katas directory to your days directory
-katac random 4
-```
-### randomly select a subset of katas
-if you want to choose the katas the random command will work on, you can add this property to
-the katac.toml file
-```toml
-[katas]
-random = ["Map", "LRU", "Trie", "Stack"]
-```
+## License
 
-## initialize from examples
-interactively select and copy example katas:
-```bash
-katac init
-```
+Dual-licensed under either of:
 
-## upgrade
-update to the latest version:
-```bash
-katac upgrade
-```
+- [MIT license](LICENSE-MIT)
+- [Apache License 2.0](LICENSE-APACHE)
 
-# Contributing
-If you have any ideas for improvements or find any issues, feel free to open an issue or submit a pull request.
+at your option.

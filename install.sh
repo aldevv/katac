@@ -34,13 +34,31 @@ detect_arch() {
     esac
 }
 
+# Detect libc on Linux. Alpine and other musl-based distros need the musl
+# binary, otherwise the dynamic loader fails to find glibc at runtime.
+detect_libc() {
+    if [ -e /lib/ld-musl-x86_64.so.1 ] || [ -e /lib/ld-musl-aarch64.so.1 ]; then
+        echo "musl"
+    elif ldd /bin/sh 2>&1 | grep -qi musl; then
+        echo "musl"
+    else
+        echo "gnu"
+    fi
+}
+
 # Get the target triple based on OS and architecture
 get_target() {
     local os=$1
     local arch=$2
 
     case "$os-$arch" in
-        linux-x86_64)   echo "x86_64-unknown-linux-gnu";;
+        linux-x86_64)
+            if [ "$(detect_libc)" = "musl" ]; then
+                echo "x86_64-unknown-linux-musl"
+            else
+                echo "x86_64-unknown-linux-gnu"
+            fi
+            ;;
         linux-aarch64)  echo "aarch64-unknown-linux-gnu";;
         linux-armv7)    echo "armv7-unknown-linux-gnueabihf";;
         darwin-x86_64)  echo "x86_64-apple-darwin";;
@@ -159,6 +177,7 @@ install_from_source() {
 
     cargo install --git "https://github.com/$REPO"
     echo -e "${GREEN}✓ katac installed successfully!${NC}"
+    echo -e "${BLUE}Cargo installs binaries to ~/.cargo/bin — make sure it's on your PATH.${NC}"
 }
 
 # Check if we should use binary installation
@@ -178,6 +197,7 @@ if [ $USE_BINARY -eq 1 ]; then
         echo -e "Add this to your shell config (~/.bashrc, ~/.zshrc, etc.):"
         echo -e "${YELLOW}    export PATH=\"\$PATH:$INSTALL_DIR\"${NC}"
         echo ""
+        echo -e "Verify with '${GREEN}katac --version${NC}'"
         echo -e "Run '${GREEN}katac --help${NC}' to get started"
         exit 0
     else
@@ -192,4 +212,5 @@ fi
 
 echo ""
 echo -e "${GREEN}Installation complete!${NC}"
+echo -e "Verify with '${GREEN}katac --version${NC}'"
 echo -e "Run '${GREEN}katac --help${NC}' to get started"

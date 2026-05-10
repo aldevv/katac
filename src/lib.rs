@@ -1144,16 +1144,35 @@ pub fn upgrade_katac(force: bool) {
             let _ = fs::set_permissions(&new_binary, perms);
         }
 
-        // On Unix, we need to remove the old binary first to avoid "Text file busy" error
-        // The running process can continue executing from the deleted inode
-        if let Err(e) = fs::remove_file(&current_exe) {
-            eprintln!("Error: Failed to remove old binary: {}", e);
+        // Stage the new binary next to the current one so the final swap is a same-filesystem
+        // rename (atomic, and tolerated by Unix even when the target is a running executable —
+        // the running process keeps the old inode open). Avoids the previous remove-then-copy
+        // pattern, which left the user with no binary if the copy step failed.
+        let staged = match current_exe.parent() {
+            Some(dir) => dir.join(format!(".katac-upgrade-{}.tmp", std::process::id())),
+            None => {
+                eprintln!("Error: Could not determine install directory");
+                let _ = fs::remove_dir_all(&extract_dir);
+                std::process::exit(1);
+            }
+        };
+
+        if let Err(e) = fs::copy(&new_binary, &staged) {
+            eprintln!("Error: Failed to stage new binary: {}", e);
+            let _ = fs::remove_file(&staged);
             let _ = fs::remove_dir_all(&extract_dir);
             std::process::exit(1);
         }
 
-        if let Err(e) = fs::copy(&new_binary, &current_exe) {
+        if let Ok(metadata) = fs::metadata(&staged) {
+            let mut perms = metadata.permissions();
+            perms.set_mode(0o755);
+            let _ = fs::set_permissions(&staged, perms);
+        }
+
+        if let Err(e) = fs::rename(&staged, &current_exe) {
             eprintln!("Error: Failed to install new binary: {}", e);
+            let _ = fs::remove_file(&staged);
             let _ = fs::remove_dir_all(&extract_dir);
             std::process::exit(1);
         }
@@ -1295,4 +1314,166 @@ fn is_version_newer(v1: &str, v2: &str) -> Option<bool> {
     let ver2 = parse_version(v2)?;
 
     Some(ver1 > ver2)
+}
+
+#[cfg(test)]
+mod upgrade_tests {
+    use super::*;
+
+    #[test]
+    fn version_newer_patch_bump() {
+        assert_eq!(is_version_newer("0.1.6", "0.1.5"), Some(true));
+    }
+
+    #[test]
+    fn version_newer_minor_bump() {
+        assert_eq!(is_version_newer("0.2.0", "0.1.99"), Some(true));
+    }
+
+    #[test]
+    fn version_newer_major_bump() {
+        assert_eq!(is_version_newer("1.0.0", "0.99.99"), Some(true));
+    }
+
+    #[test]
+    fn version_equal_returns_some_false() {
+        assert_eq!(is_version_newer("0.1.5", "0.1.5"), Some(false));
+    }
+
+    #[test]
+    fn version_older_returns_some_false() {
+        assert_eq!(is_version_newer("0.1.4", "0.1.5"), Some(false));
+    }
+
+    #[test]
+    fn version_prerelease_tag_is_unparseable() {
+        // Documents the known gotcha: -rc1 etc. fail to parse and the upgrade
+        // flow treats the comparison as incomparable.
+        assert_eq!(is_version_newer("0.1.5-rc1", "0.1.5"), None);
+        assert_eq!(is_version_newer("0.1.5", "0.1.5-rc1"), None);
+    }
+
+    #[test]
+    fn version_non_numeric_is_unparseable() {
+        assert_eq!(is_version_newer("abc", "0.1.5"), None);
+        assert_eq!(is_version_newer("0.1.5", "xyz"), None);
+        assert_eq!(is_version_newer("", "0.1.5"), None);
+    }
+
+    #[test]
+    fn target_linux_x86_64() {
+        assert_eq!(
+            get_rust_target("linux", "x86_64"),
+            "x86_64-unknown-linux-gnu"
+        );
+    }
+
+    #[test]
+    fn target_linux_aarch64() {
+        assert_eq!(
+            get_rust_target("linux", "aarch64"),
+            "aarch64-unknown-linux-gnu"
+        );
+    }
+
+    #[test]
+    fn target_linux_armv7() {
+        assert_eq!(
+            get_rust_target("linux", "armv7"),
+            "armv7-unknown-linux-gnueabihf"
+        );
+    }
+
+    #[test]
+    fn target_darwin_x86_64() {
+        assert_eq!(get_rust_target("darwin", "x86_64"), "x86_64-apple-darwin");
+    }
+
+    #[test]
+    fn target_darwin_aarch64() {
+        assert_eq!(get_rust_target("darwin", "aarch64"), "aarch64-apple-darwin");
+    }
+
+    #[test]
+    fn target_windows_x86_64() {
+        assert_eq!(
+            get_rust_target("windows", "x86_64"),
+            "x86_64-pc-windows-msvc"
+        );
+    }
+
+    #[test]
+    fn target_windows_i686() {
+        assert_eq!(get_rust_target("windows", "i686"), "i686-pc-windows-msvc");
+    }
+
+    #[test]
+    fn target_windows_aarch64() {
+        assert_eq!(
+            get_rust_target("windows", "aarch64"),
+            "aarch64-pc-windows-msvc"
+        );
+    }
+
+    #[test]
+    fn target_unknown_falls_back_to_linux_x86_64() {
+        // Documents the silent fallback noted in code review — unknown
+        // (os, arch) pairs currently resolve to linux x86_64 instead of
+        // erroring. Update this test if get_rust_target is hardened later.
+        assert_eq!(
+            get_rust_target("plan9", "powerpc"),
+            "x86_64-unknown-linux-gnu"
+        );
+    }
+
+    fn unique_tmp_dir(tag: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("katac_upgrade_test_{}_{}", tag, std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn extract_archive_tar_gz_round_trip() {
+        let tmp = unique_tmp_dir("tar");
+
+        let src_dir = tmp.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("hello.txt"), "world").unwrap();
+
+        let archive = tmp.join("test.tar.gz");
+        let status = Command::new("tar")
+            .arg("czf")
+            .arg(&archive)
+            .arg("-C")
+            .arg(&src_dir)
+            .arg("hello.txt")
+            .status()
+            .expect("tar should be available on the test runner");
+        assert!(status.success(), "fixture tar invocation failed");
+
+        let dest = tmp.join("dest");
+        fs::create_dir_all(&dest).unwrap();
+        extract_archive(&archive, &dest, "tar.gz").expect("extract_archive should succeed");
+
+        let extracted = dest.join("hello.txt");
+        assert!(extracted.exists(), "extracted file missing");
+        assert_eq!(fs::read_to_string(&extracted).unwrap(), "world");
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn extract_archive_returns_err_on_missing_file() {
+        let tmp = unique_tmp_dir("missing");
+        let nonexistent = tmp.join("does-not-exist.tar.gz");
+        let dest = tmp.join("dest");
+        fs::create_dir_all(&dest).unwrap();
+
+        let result = extract_archive(&nonexistent, &dest, "tar.gz");
+        assert!(result.is_err(), "expected Err on missing archive");
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
 }
