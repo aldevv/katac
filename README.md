@@ -3,7 +3,9 @@
 [![Crates.io](https://img.shields.io/crates/v/katac)](https://crates.io/crates/katac)
 [![License](https://img.shields.io/crates/l/katac)](#license)
 
-Practice data structures — Queue, Trie, LRU, Map, UnionFind — by reimplementing them from a clean template. `katac` handles the boilerplate: copies the kata into `days/dayN/`, runs the tests, gets out of the way.
+Practice data structures — Queue, Trie, LRU, Map, UnionFind — by reimplementing them daily from a clean template. `katac` handles the boilerplate: copies the kata into `days/dayN/`, runs the tests, gets out of the way.
+
+> A *kata* is a short, focused programming exercise meant to be repeated for practice.
 
 ![katac demo](docs/demo.gif)
 
